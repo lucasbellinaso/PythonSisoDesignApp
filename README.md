@@ -19,15 +19,15 @@ from control.matlab import *   # importing control package as a Matlab environme
 ```
 
 
-## To see help:
+## Help
 
 ``` python
 help(SISOApp)
 ```
 
-## Example
+## Example - control design
 
 ``` python
-Gc = tf(1,[1,1,1])  #example plant
-SISOApp(Gc)
+Gp = tf(1,[1,1,1])  # defining plant transfer function
+SISOApp(Gp)
 ```
