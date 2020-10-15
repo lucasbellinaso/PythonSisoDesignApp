@@ -1,7 +1,9 @@
 # Python Siso Design App
 
+User interface for designing Single-Input-Single-Output Controllers in Google Colab.
 
 Developer: Prof. Lucas Vizzotto Bellinaso
+Universidade Federal de Santa Maria
 
 To run in Colab:
 
