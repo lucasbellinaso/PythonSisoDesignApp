@@ -5,7 +5,7 @@ User interface for designing Single-Input-Single-Output Controllers in Google Co
 Developer: Prof. Lucas Vizzotto Bellinaso
 Universidade Federal de Santa Maria
 
-To run in Colab:
+## Copy this code to the first cell in Google Colab:
 
 ``` python
 # Use in the first cell:
@@ -19,13 +19,14 @@ from classes import SISOApp
 ```
 
 
-# To verify how to use the application:
+## To see help:
 
 ``` python
 help(SISOApp)
 ```
 
-# Example how to use the application to design a controller
+## Example
+
 ``` python
 Gc = tf(1,[1,1,1])  #example plant
 SISOApp(Gc)
