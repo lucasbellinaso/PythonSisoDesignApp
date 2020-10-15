@@ -3,7 +3,8 @@
 User interface for designing Single-Input-Single-Output Controllers in Google Colab.
 
 Developer: Prof. Lucas Vizzotto Bellinaso
-Universidade Federal de Santa Maria
+<br>Universidade Federal de Santa Maria
+<br>15/10/2020
 
 ## Copy this code to the first cell in Google Colab:
 
