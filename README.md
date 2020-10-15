@@ -7,7 +7,7 @@ Universidade Federal de Santa Maria
 
 To run in Colab:
 
-```
+``` python
 # Use in the first cell:
 !pip install bokeh
 !pip install control
@@ -21,11 +21,12 @@ from classes import SISOApp
 
 # To verify how to use the application:
 
+``` python
 help(SISOApp)
-
+```
 
 # Example how to use the application to design a controller
-```
+``` python
 Gc = tf(1,[1,1,1])  #example plant
 SISOApp(Gc)
 ```
