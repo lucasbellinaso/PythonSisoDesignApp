@@ -9,13 +9,13 @@ Universidade Federal de Santa Maria
 
 ``` python
 # Use in the first cell:
-!pip install bokeh
-!pip install control
-from control.matlab import *
+!pip install bokeh             # Bokeh package must be installed in Colab server
+!pip install control           # Control package must be installed in Colab server
 !git clone https://github.com/lucasbellinaso/PythonSisoDesignApp.git
-%cd PythonSisoDesignApp
-!python classes.py
-from classes import SISOApp
+%cd PythonSisoDesignApp        # browsing the github folder
+!python classes.py             # running the github code
+from classes import SISOApp    # importing the SISOApp
+from control.matlab import *   # importing control package as a Matlab environment
 ```
 
 
