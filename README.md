@@ -20,6 +20,7 @@ from classes import SISOApp    # importing the SISOApp
 from control.matlab import *   # importing control package as a Matlab environment
 help(SISOApp)
 ```
+If you have an AdBlock installed: disable GitHub and Google Colab blocking.
 
 
 ## Help
