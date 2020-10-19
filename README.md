@@ -13,10 +13,12 @@ Developer: Prof. Lucas Vizzotto Bellinaso
 !pip install bokeh             # Bokeh package must be installed in Colab server
 !pip install control           # Control package must be installed in Colab server
 !git clone https://github.com/lucasbellinaso/PythonSisoDesignApp.git
-%cd PythonSisoDesignApp        # browsing the github folder
+import os
+os.chdir("PythonSisoDesignApp")
 !python classes.py             # running the github code
 from classes import SISOApp    # importing the SISOApp
 from control.matlab import *   # importing control package as a Matlab environment
+help(SISOApp)
 ```
 
 
