@@ -609,6 +609,13 @@ class SISOApp:
     self.cprlocussource.data = {'x':re(self.CPoles),'y':im(self.CPoles),'K':Kcp}
     self.czrlocussource.data = {'x':re(self.CZeros),'y':im(self.CZeros),'K':Kcz}
     self.updateRLocusData()
+    if rootsVect.size>0: 
+      xrangemin, xrangemax = np.min(re(rootsVect)), np.max(re(rootsVect))
+      if np.abs(xrangemax-xrangemin)<2:
+        self.figRLoc.x_range.update(start=xrangemin-1, end=xrangemax+1)
+      yrangemin, yrangemax = np.min(im(rootsVect)), np.max(im(rootsVect))
+      if np.abs(yrangemax-yrangemin)<2:
+        self.figRLoc.y_range.update(start=yrangemin-1, end=yrangemax+1) 
 
   def updateRLocusData(self):
     Cgain_real = db2mag(self.CgainInDBInteract.value)
