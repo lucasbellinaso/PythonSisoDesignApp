@@ -191,7 +191,8 @@ class SISOApp:
     self.PolesAndZerosList, self.relatOrderC = [], 0
     
     if self.Ts is not None:     self.fNyquistHz = 0.5/self.Ts;
-
+    else: self.fNyquistHz = 1e6
+    
     if Gc is None:
         self.CTransfFunc = tf(1,1, self.Ts)
     else:
