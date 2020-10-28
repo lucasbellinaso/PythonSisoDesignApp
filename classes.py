@@ -493,13 +493,11 @@ class SISOApp:
     if (self.relatOrderC >= 1): npz.extend(['real zero','differentiator'])
     if (self.relatOrderC >= 2): npz.append('complex zero')
     self.NewPZDropdown.options = npz
-   
-    self.Appwidget.center = VBox([pzs.Widget for pzs in self.PolesAndZerosList])
-    asdfs = display(self.Appwidget)
-    self.printController(0)
     self.createRLocus()
     self.createBode()
-    self.updateStepResponse()
+    self.updateStepResponse()    
+    self.Appwidget.center = VBox([pzs.Widget for pzs in self.PolesAndZerosList])
+    asdfs = display(self.Appwidget)
     bokeh.io.output_notebook()
     self.Bknb_handle = bokeh.io.show(self.Bkgrid, notebook_handle=True)
     bokeh.io.push_notebook(handle = self.Bknb_handle)
