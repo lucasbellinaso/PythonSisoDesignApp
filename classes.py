@@ -271,7 +271,7 @@ class SISOApp:
       self.NewPZDropdown.value = ' '
       x = len(self.PolesAndZerosList)-1
       self.PolesAndZerosList[x].FrequencySetButton.on_click(self.updateTFAndBokeh)
-      self.updateTFAndScreen(0)
+    self.updateTFAndScreen(0)
 
   def printController(self,b):
     numstr, denstr = '', ''
