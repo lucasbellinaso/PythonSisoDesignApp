@@ -546,7 +546,7 @@ class SISOApp:
 
   def createBode(self):
     '''Creates the plots for Bode Diagram '''
-    magT,phiT,omega = bode(self.OLTF, Plot=False)
+    magT,phiT,omega = bode(self.OLTF, omega_num=1000, Plot=False)
     magG,phiG,_ = bode(self.GpTransfFunc,omega, Plot=False)
     magdbG, magdbT = mag2db(magG), mag2db(magT)
     phiGHz, phiTHz = phiG*180/pi, phiT*180/pi
