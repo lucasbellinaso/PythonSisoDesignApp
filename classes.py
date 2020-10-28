@@ -447,7 +447,11 @@ class SISOApp:
     rlocusCzeros = self.figRLoc.circle(x='x',y='y',line_color='red',size=6,
                  name='C zero', fill_color=None, source = self.czrlocussource)
     rlocusMF = self.figRLoc.square(x='x',y='y', line_color='red',size=6,
-                 name='K', fill_color='red', source = self.krlocussource)    
+                 name='K', fill_color='red', source = self.krlocussource)   
+    rlocuslinehv = self.figRLoc.line(x='x',y='y',line_alpha=0, 
+                                  name='rlocus2', source = self.rlocussource)
+    self.figRLoc.hover.renderers=[rlocuslinehv, rlocusGpoles, rlocusGzeros,
+                                  rlocusCpoles, rlocusCzeros, rlocusMF]
     self.Stabilitytxt = Label(x=10, y=200, x_units='screen', y_units='screen', 
                          text=' ',  render_mode='css',border_line_color=None,
                         background_fill_color='white',text_font_size = '11px')
