@@ -213,7 +213,6 @@ class SISOApp:
     self.buildBokehFigs()
     self.createRLocus()
     self.updateCLabels()
-    bokeh.io.output_notebook()
     self.updateTFAndScreen(0)
 
   def setControllerZPK(self, Gc):
@@ -497,6 +496,7 @@ class SISOApp:
     self.createRLocus()
     self.createBode()
     self.updateStepResponse()
+    bokeh.io.output_notebook()
     self.Bknb_handle = bokeh.io.show(self.Bkgrid, notebook_handle=True)
     bokeh.io.push_notebook(handle = self.Bknb_handle)
 
