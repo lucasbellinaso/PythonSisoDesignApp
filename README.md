@@ -18,7 +18,7 @@ os.chdir("PythonSisoDesignApp")
 !python classes.py             # running the github code
 from classes import SISOApp    # importing the SISOApp
 from control.matlab import *   # importing control package as a Matlab environment
-help(SISOApp)
+#help(SISOApp)
 ```
 If you have an AdBlock installed: disable GitHub and Google Colab blocking.
 
