@@ -188,7 +188,8 @@ class SISOApp:
        Gp, Gc e Gf shall be of the same sample time Ts.  """
     self.GpTransfFunc, self.Ts  = Gp, Gp.dt
     self.GpZeros, self.GpPoles,_ = tf2zpk(Gp.num[0][0], Gp.den[0][0])
-
+    self.PolesAndZerosList, self.relatOrderC = [], 0
+    
     if self.Ts is not None:     self.fNyquistHz = 0.5/self.Ts;
 
     if Gc is None:
