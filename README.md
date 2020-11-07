@@ -9,9 +9,9 @@ Developer: Prof. Lucas Vizzotto Bellinaso
 ## Copy this code to the first cell in Google Colab:
 
 ``` python
-# Use in the first cell:
-!pip install bokeh             # Bokeh package must be installed in Colab server
-!pip install control           # Control package must be installed in Colab server
+# Copy and run in the first cell:
+!pip install bokeh             # Bokeh package must be installed in Google Colab server
+!pip install control           # Control package must be installed in Google Colab server
 !git clone https://github.com/lucasbellinaso/PythonSisoDesignApp.git
 import os
 os.chdir("PythonSisoDesignApp")
@@ -20,7 +20,7 @@ from classes import SISOApp    # importing the SISOApp
 from control.matlab import *   # importing control package as a Matlab environment
 #help(SISOApp)
 ```
-If you have an AdBlock installed: disable GitHub and Google Colab blocking.
+If you have any AdBlock installed: disable GitHub and Google Colab blocking.
 
 
 ## Help
@@ -35,3 +35,7 @@ help(SISOApp)
 Gp = tf(1,[1,1,1])  # defining plant transfer function
 SISOApp(Gp)
 ```
+
+## Figures
+
+!alttext[SISOApp_fig1.jpeg]
