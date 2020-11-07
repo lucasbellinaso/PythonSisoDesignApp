@@ -12,18 +12,17 @@ from IPython.display import display, clear_output
 from matplotlib import pyplot as plt
 
 
+
 class PoleOrZeroClass:
   """
     TYPE: 'pole', 'zero'
     SUBTYPE:'real', 'complex',  'integrator' or 'differentiator'
     Ts: None for continous time,  or float>0 for discrete-time
-  """
-  TYPE = 'pole'
-  SUBTYPE = 'integrator'
-  num, den = np.array([0,1]), np.array([0,1])
-  freqHz, csi = 0, 1
+  """  
   def __init__(self,TYPE,SUBTYPE,Ts,AppInstance,omega=None, csi=None):
     self.TYPE, self.SUBTYPE = TYPE, SUBTYPE
+    self.num, self.den = np.array([0,1]), np.array([0,1])
+    self.freqHz, self.csi = 0, 1
     self.Ts = Ts
     self.AppInstance = AppInstance
     self.ZPtf = tf(1,1,Ts)   #default: integrator pole
@@ -35,7 +34,7 @@ class PoleOrZeroClass:
                            continuous_update=True, layout = box_layout)
     if omega is not None: self.FrequencyWidget.value = omega/(2*pi)
     self.DampingRatioWidget = BoundedFloatText(description=r'Damp.Ratio',
-                           value=(1. if csi is None else csi), step = 0.001,
+                           value=(0.1 if csi is None else csi), step = 0.001,
                            min=0, max=1, continuous_update=True,layout = box_layout)
     self.FrequencySetButton = Button(description='Set',layout=widgets.Layout(width='100px'))
     self.DeleteButton = Button(description='Delete', layout=widgets.Layout(width='100px'))
@@ -80,7 +79,7 @@ class PoleOrZeroClass:
             a1 = -2*exp(-self.csi*w0*Ts)*cos(w0*sqrt(1-csi**2)*Ts)
             a2 =  exp(-2*self.csi*w0*Ts)
             poly = array([1,a1,a2])/(1+a1+a2)
-      else: poly = array([1/Ts,-1/Ts])
+      else: poly = 1/Ts*array([1,-1])  #integrator or differentiator
     if   self.TYPE is 'zero':  self.num = poly
     elif self.TYPE is 'pole':  self.den = poly
     self.ZPtf = tf(self.num,self.den,self.Ts)
@@ -93,31 +92,35 @@ class PoleOrZeroClass:
     if num_den_key is 'num' and self.TYPE is 'zero': poly = self.num
     elif  num_den_key is 'den' and self.TYPE is 'pole': poly = self.den
     else: return ''
-    if self.Ts is None:
-      if self.SUBTYPE is 'integrator' or self.SUBTYPE is 'differentiator': return 's'
-    x = '*s' if self.Ts is None else '*z'
-    str1 = f'({poly[0]:.4f}{x}'
-    if self.SUBTYPE is 'complex': str1 = str1 + '²'
-    if   poly[1]<0: str1 = str1+f'{poly[1]:.4f}'
-    elif poly[1]>0: str1 = str1 + '+' + f'{poly[1]:.4f}'
+    if self.SUBTYPE in ['integrator','differentiator']:
+      return 's' if self.Ts is None else f'{poly[0]:.2f}(z-1)'
+    if self.SUBTYPE is 'real':
+      if self.Ts is None: return f'(s/{(1/poly[0]):.2f}+1)'
+      else: return f'{poly[0]:.2f}(z{(poly[1]/poly[0]):.4f})'
     if self.SUBTYPE is 'complex':
-      if   poly[2]<0:   str1 = str1+f'{x}{poly[2]:.4f}'
-      elif poly[2]>0:   str1 = str1+f'{x}+{poly[2]:.4f}'
-    return str1+')'
+      if self.Ts is None:
+        w0 = (2*pi*self.freqHz)
+        a1s = '' if self.csi == 0  else f'+s(2*{self.csi:.3f}/{w0:.2f})'
+        return f'((s/{w0:.2f})²{a1s}+1)'
+      else:
+        az0 = '+1))' if (self.csi==0) else f'+{(poly[2]/poly[0]):.4f}))'
+        signal1 = '+' if (poly[1]>0) else ''
+        return f'({poly[0]:.4f}(z²{signal1}{(poly[1]/poly[0]):.4f}z'+az0
+
     
   def deletePoleZero(self,b):
-    if self.TYPE is 'pole':
-      if self.SUBTYPE is 'complex': self.AppInstance.relatOrderC -= 2
-      else:                         self.AppInstance.relatOrderC -= 1
-    elif self.SUBTYPE is 'complex': self.AppInstance.relatOrderC += 2
-    else:                           self.AppInstance.relatOrderC += 1
-
-    del self.AppInstance.PolesAndZerosList[self.PZIndexInApp]
-    for x in range(self.PZIndexInApp,len(self.AppInstance.PolesAndZerosList)):
-      self.AppInstance.PolesAndZerosList[x].PZIndexInApp -= 1 
-    self.AppInstance.updateTFAndScreen(0)
+    # Changes the relative order when pole or zero is deleted:
+    delta = (-1 if self.TYPE is 'pole' else 1)*(2 if self.SUBTYPE is 'complex' else 1)
+    self.AppInstance.relatOrderC += delta
+    if self.AppInstance.relatOrderC<0:
+      print('Controller should not have more zeros than poles. First delete a zero!')
+      self.AppInstance.relatOrderC -= delta
+    else:
+      del self.AppInstance.PolesAndZerosList[self.PZIndexInApp]
+      for x in range(self.PZIndexInApp,len(self.AppInstance.PolesAndZerosList)):
+        self.AppInstance.PolesAndZerosList[x].PZIndexInApp -= 1 
+      self.AppInstance.updateTFAndScreen(0)
   
- 
  
 class SISOApp:
   '''
@@ -153,32 +156,10 @@ class SISOApp:
                    VBox([widgets.Label('Max Settling Time (s)'), STimeIn])] )
   NewPZDropdown = Dropdown(options=[' ','real pole','integrator','complex pole'],
                            value=' ', description=' ')
-  CreatePZButton = Button(description='Insert and create figure below',
-                          layout=widgets.Layout(width='200px'))
-  NewPoleZeroBox = HBox([widgets.Label('Add Pole or Zero:'),NewPZDropdown,CreatePZButton])
+  
   minCGainIndB, maxCGainIndB, CGainStepIndB = -80, 80, 0.5
-  CgainInDBInteract = widgets.FloatSlider(value=0, min=minCGainIndB, 
-                                       max=maxCGainIndB, step=CGainStepIndB, 
-                                       layout=widgets.Layout(width='450px'),
-                                       description = 'C gain dB:',
-                                       continuous_update=True)
-  updateControllerButton = Button(description='Update',
-                          layout=widgets.Layout(width='200px'))  
-  Appwidget = AppLayout(header = NewPoleZeroBox,
-                        left_sidebar = widgets.Label('Poles and Zeros:'),
-                        center = widgets.Label('Poles or Zero Widget'),
-                        right_sidebar = updateControllerButton,
-                        footer = HBox([CgainInDBInteract,ReqWidget]))
- 
-  dKgaindB = 0
   kvectLen = int((maxCGainIndB-minCGainIndB)/CGainStepIndB)+1
-  rootsVect, kvect = [], list(np.linspace(minCGainIndB,maxCGainIndB,kvectLen))
-  PhaseMargin, GainMargin = 0,0
-  fNyquistHz = 1e6
-  PolesAndZerosList = []
-  CPoles, CZeros, Kgain, numC, denC = [], [], 1, np.array([0,1]), np.array([0,1])
-  relatOrderC = 0
-  OLTF = tf(1,1)
+  kvect = list(np.linspace(minCGainIndB,maxCGainIndB,kvectLen))
 
 
   def __init__(self, Gp, Gc=None, Gf=None):
@@ -186,39 +167,63 @@ class SISOApp:
        Gc (optional): controller transfer function (Python Control Package)
        Gf (optional): measurement filter transfer function
        Gp, Gc e Gf shall be of the same sample time Ts.  """
+    clear_output()
     self.GpTransfFunc, self.Ts  = Gp, Gp.dt
     self.GpZeros, self.GpPoles,_ = tf2zpk(Gp.num[0][0], Gp.den[0][0])
     self.PolesAndZerosList, self.relatOrderC = [], 0
-    
-    if self.Ts is not None:     self.fNyquistHz = 0.5/self.Ts;
-    else: self.fNyquistHz = 1e6
-    
+    self.CPoles,self.CZeros,self.Kgain, self.dKgaindB = [], [], 1, 0
+    self.numC, self.denC = np.array([0,1]), np.array([0,1])
+    self.OLTF = tf(1,1,self.Ts)
+    self.PhaseMargin, self.GainMargin = 0,0
+    self.rootsVect = []
+    self.fNyquistHz = 1e6 if self.Ts is None else 0.5/self.Ts;
     if Gc is None:
         self.CTransfFunc = tf(1,1, self.Ts)
     else:
-        assert Gc.dt == Gp.dt ,  'Gc.dt should be equal of Gp.dt'
+        assert Gc.dt == Gp.dt ,  'Gc.dt should be equal to Gp.dt'
         self.CTransfFunc = Gc
-    self.setControllerZPK(self.CTransfFunc)
     if Gf is None: self.GfTransfFunc = tf(1,1, self.Ts)
     else:
-        assert Gf.dt == Gp.dt ,  'Gf.dt should be equal of Gp.dt'
+        assert Gf.dt == Gp.dt ,  'Gf.dt should be equal to Gp.dt'
         self.GfTransfFunc = Gf
 
+    #Create ipywidgets layout and events:
+    self.CreatePZButton = Button(description='Insert and create figure below',
+                          layout=widgets.Layout(width='200px'))
+    self.NewPoleZeroBox = HBox([widgets.Label('Add Pole or Zero:'),
+                                self.NewPZDropdown,self.CreatePZButton])
+    self.CgainInDBInteract = widgets.FloatSlider(value=0, min=self.minCGainIndB, 
+                                       max=self.maxCGainIndB, step=self.CGainStepIndB, 
+                                       layout=widgets.Layout(width='450px'),
+                                       description = 'C gain dB:',
+                                       continuous_update=True)    
+    self.updateControllerButton = Button(description='Update and print controller',
+                          layout=widgets.Layout(width='200px')) 
+    self.Appwidget = AppLayout(header = self.NewPoleZeroBox,
+                        left_sidebar = widgets.Label('Poles and Zeros:'),
+                        center = widgets.Label('Poles or Zero Widget'),
+                        right_sidebar = self.updateControllerButton,
+                        footer = HBox([self.CgainInDBInteract,self.ReqWidget]))
     self.CreatePZButton.on_click(self.insertPoleZero)
     self.CgainInDBInteract.observe(self.updateGainAndBokeh,'value')
-    self.updateControllerButton.on_click(self.updateTFAndBokeh)
+    self.updateControllerButton.on_click(self.updateAndPrintC)
     self.OShotIn.observe(self.updateRequirements,'value')
     self.RTimeIn.observe(self.updateRequirements,'value')
     self.STimeIn.observe(self.updateRequirements,'value')
+
+    #Other Initialization algorithms:
+    self.setControllerZPK(self.CTransfFunc)
     self.buildBokehFigs()
     self.createRLocus()
     self.updateCLabels()
+    #bokeh.io.output_notebook()
     self.updateTFAndScreen(0)
 
   def setControllerZPK(self, Gc):
     del self.PolesAndZerosList[:]
     self.numC, self.denC = Gc.num[0][0],Gc.den[0][0]
     self.CZeros, self.CPoles, self.Kgain  = tf2zpk(self.numC,self.denC)
+    self.relatOrderC = len(self.CPoles) - len(self.CZeros)
     zeros_filt = list(filter(lambda x: x!=0, self.CZeros ))
     poles_filt = list(filter(lambda x: x!=0, self.CPoles ))
     num,den = zpk2tf(zeros_filt, poles_filt, 1)
@@ -275,14 +280,13 @@ class SISOApp:
 
   def printController(self,b):
     numstr, denstr = '', ''
-    Kstr = f'{db2mag(self.CgainInDBInteract.value):.2f}'
+    Kstr = f'{db2mag(self.CgainInDBInteract.value):.4f}'
     for pz in self.PolesAndZerosList:
       numstr = numstr + pz.printNumOrDen('num')
       denstr = denstr + pz.printNumOrDen('den')
-    if numstr is '': numstr = '1'
-    if denstr is '': denstr = '1'
-    #print('C(s)= {}*{}/({})'.format(Kstr,numstr, denstr))
-    return numstr, denstr, Kstr
+    if len(numstr)<1: numstr = '1'
+    if len(denstr)<1: denstr = '1'
+    return str(numstr), str(denstr), Kstr
     
   def buildBokehFigs(self):
     #BOKEH FIGURES:
@@ -342,7 +346,7 @@ class SISOApp:
 
     _TTS_BD1 = [('sys',"$name"),("f","$x Hz"),("mag","$y dB")]
     _TTS_BD2 = [('sys',"$name"),("f","$x Hz"),("ang","$y°")]
-    _TTS_RLOC= [("real","@x"),("imag","@y"),('K','@K{0.0 a}')]
+    _TTS_RLOC= [("real","@x"),("imag","@y"),('K','@K{0.00 a}')]
     _TTS_TRESP = [('signal', "$name"), ("t", "$x s"), ("value", "$y") ]
     self.figMag = BkFig(title="Bode Magnitude", plot_height=300, plot_width=400,
                toolbar_location="above", tooltips = _TTS_BD1, x_axis_type="log",
@@ -350,11 +354,12 @@ class SISOApp:
     self.figAng =  BkFig(title="Bode Angle", plot_height=300, plot_width=400,
                 toolbar_location="above", tooltips = _TTS_BD2, x_axis_type="log",
                 x_axis_label='f (Hz)', y_axis_label='ang (°)')
-    self.figAng.x_range = self.figMag.x_range   #same axis
+    self.figAng.x_range  = self.figMag.x_range   #same axis
     self.figAng.yaxis.ticker=np.linspace(-720,720,17)
     self.figRLoc=  BkFig(title="Root Locus", plot_height=300, plot_width=400,
                 toolbar_location="above", tooltips = _TTS_RLOC,
                 x_axis_label='real', y_axis_label='imag')
+    #self.figRLoc.hover.line_policy = 'interp'
     self.figTResp = BkFig(title="Time Response", plot_height=300, plot_width=400,
                 toolbar_location="above", tooltips = _TTS_TRESP,
                 x_axis_label='time (s)', y_axis_label='y') 
@@ -424,10 +429,10 @@ class SISOApp:
                          text='K',  render_mode='css',border_line_color=None,
                         background_fill_color='white',text_font_size = '11px')
     self.Cnumtxt = Label(x=100, y=30, x_units='screen', y_units='screen', 
-                         text='num',  render_mode='css',border_line_color=None,
+                         text='N',  render_mode='css',border_line_color=None,
                         background_fill_color='white',text_font_size = '11px')
     self.Cdentxt = Label(x=100, y=10, x_units='screen', y_units='screen', 
-                         text='den',  render_mode='css',border_line_color=None,
+                         text='D',  render_mode='css',border_line_color=None,
                         background_fill_color='white',text_font_size = '11px')
     self.figMag.add_layout(self.GMSpan), self.figAng.add_layout(self.GMSpan)
     self.figMag.add_layout(self.PMSpan), self.figAng.add_layout(self.PMSpan)
@@ -447,11 +452,14 @@ class SISOApp:
     rlocusCzeros = self.figRLoc.circle(x='x',y='y',line_color='red',size=6,
                  name='C zero', fill_color=None, source = self.czrlocussource)
     rlocusMF = self.figRLoc.square(x='x',y='y', line_color='red',size=6,
-                 name='K', fill_color='red', source = self.krlocussource)   
+                 name='K', fill_color='red', source = self.krlocussource) 
     rlocuslinehv = self.figRLoc.line(x='x',y='y',line_alpha=0, 
                                   name='rlocus2', source = self.rlocussource)
     self.figRLoc.hover.renderers=[rlocuslinehv, rlocusGpoles, rlocusGzeros,
                                   rlocusCpoles, rlocusCzeros, rlocusMF]
+    #self.figRLoc.hover.mode='mouse'   
+    #self.figRLoc.hover.line_policy='next'
+    #self.figRLoc.hover.point_policy='snap_to_data'
     self.Stabilitytxt = Label(x=10, y=200, x_units='screen', y_units='screen', 
                          text=' ',  render_mode='css',border_line_color=None,
                         background_fill_color='white',text_font_size = '11px')
@@ -495,12 +503,12 @@ class SISOApp:
     self.NewPZDropdown.options = npz
     self.createRLocus()
     self.createBode()
-    self.updateStepResponse()    
+    self.updateStepResponse()
     self.Appwidget.center = VBox([pzs.Widget for pzs in self.PolesAndZerosList])
     asdfs = display(self.Appwidget)
     bokeh.io.output_notebook()
     self.Bknb_handle = bokeh.io.show(self.Bkgrid, notebook_handle=True)
-    bokeh.io.push_notebook(handle = self.Bknb_handle)
+    self.updateBokeh()
 
   def updateGainAndBokeh(self,b):
     #Update gain:  updates Gc(s),  T(s), and Kgain
@@ -511,6 +519,15 @@ class SISOApp:
     self.Kgain, self.dKgaindB = Kgain_new,  np.round(mag2db(dKgain),decimals=1)
     #Update Bokeh:
     self.updateBokeh()
+
+  def updateAndPrintC(self,b):
+    self.updateTFAndBokeh(0)
+    N,D,K = self.printController(0)
+    print(f'Controller:  num = {self.numC}')
+    print(f'             den  = {self.denC}')
+    print(f'ZPK:  zeros = {self.CZeros}')
+    print(f'      poles = {self.CPoles}')
+    print(f'      gain = {self.Kgain}')
 
   def updateTFAndBokeh(self,b):
     self.updateTransferFunction()
@@ -539,12 +556,11 @@ class SISOApp:
     self.CTransfFunc = tf(self.numC, self.denC, self.Ts)
     self.CPoles = self.CTransfFunc.pole()
     self.CZeros = self.CTransfFunc.zero()
-    #print(self.CPoles)
     self.OLTF = self.GpTransfFunc*self.CTransfFunc
 
   def createBode(self):
     '''Creates the plots for Bode Diagram '''
-    magT,phiT,omega = bode(self.OLTF, omega_num=1000, Plot=False)
+    magT,phiT,omega = bode(self.OLTF,omega_num=1000, Plot=False)
     magG,phiG,_ = bode(self.GpTransfFunc,omega, Plot=False)
     magdbG, magdbT = mag2db(magG), mag2db(magT)
     phiGHz, phiTHz = phiG*180/pi, phiT*180/pi
@@ -553,24 +569,25 @@ class SISOApp:
                          'magdBT':magdbT, 'magT':magT, 'angT':phiTHz}
     self.updatePMGM()
     def d2c_clampAtNyquistFreq(PZdiscr):
-          pzabs = np.abs(PZdiscr)
-          pcont = np.abs(np.log(pzabs))/self.Ts
+          omegaVec = np.abs(np.log(PZdiscr))/self.Ts
           omega_nyqu = 2*np.pi*self.fNyquistHz
-          for x in pcont:
-             if x>omega_nyqu: x = omega_nyqu
-          return pcont
+          for q in range(len(omegaVec)):
+            if omegaVec[q]>omega_nyqu: omegaVec[q] = omega_nyqu
+          return omegaVec
     func1 = np.abs if self.Ts is None else d2c_clampAtNyquistFreq
     dict1 = {'Gpp': [self.GpPoles,self.gpbodesource],
              'Gpz': [self.GpZeros,self.gzbodesource],
              'CP' : [self.CPoles,self.cpbodesource],
              'CZ' : [self.CZeros,self.czbodesource]}
     for key1 in ['Gpp','Gpz','CP','CZ']:
-      pORz = list(filter(lambda x: x>1e-10, func1(dict1[key1][0])))
+      pORz = list(filter(lambda x: x>1e-6, func1(dict1[key1][0])))
+      magdB, phideg, fHz = [], [], []
       if pORz:
         mag,phi,omega = bode(self.OLTF, pORz, Plot=False)
         magdB, phideg, fHz = mag2db(mag), phi*180/pi, (omega/(2*np.pi))
-        dict1[key1][1].data={'fHz':list(fHz),'magdB':list(magdB),
-                           'angdeg':list(phideg)}
+        for q in range(len(phideg)):
+          if phideg[q] > 90: phideg[q] = phideg[q]-360;
+      dict1[key1][1].data={'fHz':list(fHz),'magdB':list(magdB),'angdeg':list(phideg)}
 
   def updateBodeData(self):
     def sum_constant_to_list(data_dict, list_key, constant):
@@ -611,6 +628,7 @@ class SISOApp:
     self.cprlocussource.data = {'x':re(self.CPoles),'y':im(self.CPoles),'K':Kcp}
     self.czrlocussource.data = {'x':re(self.CZeros),'y':im(self.CZeros),'K':Kcz}
     self.updateRLocusData()
+
     if rootsVect.size>0: 
       xrangemin, xrangemax = np.min(re(rootsVect)), np.max(re(rootsVect))
       if np.abs(xrangemax-xrangemin)<2:
@@ -618,11 +636,12 @@ class SISOApp:
       yrangemin, yrangemax = np.min(im(rootsVect)), np.max(im(rootsVect))
       if np.abs(yrangemax-yrangemin)<2:
         self.figRLoc.y_range.update(start=yrangemin-1, end=yrangemax+1) 
+    
 
   def updateRLocusData(self):
     Cgain_real = db2mag(self.CgainInDBInteract.value)
     Kindex = int(self.kvectLen*(self.CgainInDBInteract.value-self.minCGainIndB)
-                                       /(self.maxCGainIndB-self.minCGainIndB))
+                                       /(self.maxCGainIndB-self.minCGainIndB))-1
     x,y = np.real(self.rootsVect[Kindex]), np.imag(self.rootsVect[Kindex])
     K = self.kvect[Kindex]*np.ones(len(list(x)))
     self.krlocussource.data = {'x': x , 'y': y, 'K':K} 
@@ -653,4 +672,6 @@ class SISOApp:
     bokeh.io.push_notebook(handle = self.Bknb_handle)
 
   def updateCLabels(self):
-    self.Cnumtxt.text,self.Cdentxt.text,self.Cgaintxt.text = self.printController(0)
+    N,D,K = self.printController(0)
+    self.Cnumtxt.text, self.Cdentxt.text, self.Cgaintxt.text = 'N','D','K'
+    self.Cnumtxt.text, self.Cdentxt.text, self.Cgaintxt.text = N,D,K
