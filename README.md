@@ -38,4 +38,4 @@ SISOApp(Gp)
 
 ## Figures
 
-!alttext[SISOApp_fig1.jpeg]
+![image](SISOApp_fig1.jpeg)
