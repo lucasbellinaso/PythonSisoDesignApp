@@ -204,33 +204,32 @@ class SISOApp:
                         center = widgets.Label('Poles or Zero Widget'),
                         right_sidebar = self.updateControllerButton,
                         footer = HBox([self.CgainInDBInteract,self.ReqWidget]))
+    self.setControllerZPK(self.CTransfFunc)
+    self.buildBokehFigs()
+    self.updateTFAndScreen(0)
+
+    #Define events:
     self.CreatePZButton.on_click(self.insertPoleZero)
     self.CgainInDBInteract.observe(self.updateGainAndBokeh,'value')
     self.updateControllerButton.on_click(self.updateAndPrintC)
     self.OShotIn.observe(self.updateRequirements,'value')
     self.RTimeIn.observe(self.updateRequirements,'value')
     self.STimeIn.observe(self.updateRequirements,'value')
-
-    #Other Initialization algorithms:
-    self.setControllerZPK(self.CTransfFunc)
-    self.buildBokehFigs()
-    self.createRLocus()
-    self.updateCLabels()
     #bokeh.io.output_notebook()
-    self.updateTFAndScreen(0)
 
   def setControllerZPK(self, Gc):
     del self.PolesAndZerosList[:]
     self.numC, self.denC = Gc.num[0][0],Gc.den[0][0]
     self.CZeros, self.CPoles, self.Kgain  = tf2zpk(self.numC,self.denC)
     self.relatOrderC = len(self.CPoles) - len(self.CZeros)
-    zeros_filt = list(filter(lambda x: x!=0, self.CZeros ))
-    poles_filt = list(filter(lambda x: x!=0, self.CPoles ))
+    pzIntDiff = 0.0 if self.Ts is None else 1.0
+    zeros_filt = list(filter(lambda x: np.abs(x-pzIntDiff)>=1e-6, self.CZeros ))
+    poles_filt = list(filter(lambda x: np.abs(x-pzIntDiff)>=1e-6, self.CPoles ))
     num,den = zpk2tf(zeros_filt, poles_filt, 1)
-    Gtemp = tf(num,den)
-    self.Kgain = self.Kgain*Gtemp.dcgain()
+    Gtemp = tf(num,den, self.Ts)
+    self.Kgain = Gtemp.dcgain()
     assert len(self.CPoles)>=len(self.CZeros), 'Gc should not have more zeros than poles.'
-    self.CgainInDBInteract.value = 20*np.log10(self.Kgain)
+    self.CgainInDBInteract.value = mag2db(self.Kgain)
     if Gc.dt is not None:
       assert all(np.abs(self.CPoles)<=1), 'Gc(z) should not have unstable poles.'
       assert all(np.abs(self.CZeros)<=1), 'Gc(z) should not have non minimum phase zeros.'
@@ -241,7 +240,7 @@ class SISOApp:
       omegaZ, omegaP = self.CZeros, self.CPoles
 
     for z in omegaZ:
-      if z==0: self.PolesAndZerosList.append(
+      if np.abs(z-pzIntDiff)<1e-6: self.PolesAndZerosList.append(
               PoleOrZeroClass('zero','differentiator', self.Ts, self))
       elif np.imag(z)>0:
         wn, csi = np.abs(z), np.abs(np.real(z))/np.abs(z)
@@ -250,7 +249,7 @@ class SISOApp:
       elif np.imag(z)==0: self.PolesAndZerosList.append(
           PoleOrZeroClass('zero','real', self.Ts, self, omega=-z))
     for p in omegaP:
-      if p==0:  self.PolesAndZerosList.append(
+      if np.abs(p-pzIntDiff)<1e-6:  self.PolesAndZerosList.append(
           PoleOrZeroClass('pole','integrator', self.Ts, self))
       elif np.imag(p)>0: 
         wn, csi = np.abs(p), np.abs(np.real(p))/np.abs(p)
@@ -537,6 +536,7 @@ class SISOApp:
 
   def updateTFAndScreen(self,b):
     self.updateTransferFunction()
+    #print(self.CTransfFunc)
     self.updateScreen()
 
   def updateBokeh(self):
@@ -652,10 +652,13 @@ class SISOApp:
   def updateStepResponse(self):
     Gmf = feedback(self.OLTF, 1)
     Gru = feedback(self.CTransfFunc, self.GpTransfFunc)
-    ymf,tvec = step(Gmf)
+    tau5_Gmf = np.abs(5/np.min(np.real(Gmf.pole()))) #5 constantes de tempo
+    nmax = np.round(tau5_Gmf/self.Ts)
+    tvec = linspace(0,nmax*self.Ts, int(nmax+1))
+    ymf,tvec = step(Gmf, tvec)
     #rt = tvec[next(i for i in range(0,len(ymf)-1) if ymf[i]>ymf[-1]*.90)]-tvec[0]
     try: st = tvec[next(len(ymf)-q for q in range(2,len(ymf)-1) if abs(ymf[-q]/ymf[-1])>1.02)]
-    except: st = 0.33*tvec[-1]
+    except: st = tvec[-1]
     if self.Ts is None:
         ymf,tvec = step(Gmf, T=np.linspace(0,3*st,100))
     yma,_ = step(self.GpTransfFunc, T=tvec)
