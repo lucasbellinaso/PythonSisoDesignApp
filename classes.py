@@ -1,7 +1,7 @@
 import bokeh
 from bokeh.models import ColumnDataSource, Span, Band, Label
 from bokeh.plotting import figure as BkFig
-from control.matlab import tf,c2d,bode,nyquist,rlocus,step,feedback,lsim
+from control.matlab import tf,c2d,bode,nyquist,rlocus,step,feedback,lsim,minreal
 from control.matlab import margin, mag2db, db2mag
 from scipy.signal import tf2zpk, zpk2tf
 import numpy as np
@@ -10,6 +10,7 @@ import ipywidgets as widgets
 from ipywidgets import BoundedFloatText,Button,HBox,VBox,AppLayout,Dropdown
 from IPython.display import display, clear_output
 from matplotlib import pyplot as plt
+
 
 
 
@@ -556,12 +557,12 @@ class SISOApp:
     self.CTransfFunc = tf(self.numC, self.denC, self.Ts)
     self.CPoles = self.CTransfFunc.pole()
     self.CZeros = self.CTransfFunc.zero()
-    self.OLTF = self.GpTransfFunc*self.CTransfFunc
+    self.OLTF = minreal(self.GpTransfFunc*self.CTransfFunc,tol=1e-6,verbose=False)
 
   def createBode(self):
     '''Creates the plots for Bode Diagram '''
-    magT,phiT,omega = bode(self.OLTF,omega_num=1000, Plot=False)
-    magG,phiG,_ = bode(self.GpTransfFunc,omega, Plot=False)
+    magT,phiT,omega = bode(self.OLTF,omega_num=1000, plot=False)
+    magG,phiG,_ = bode(self.GpTransfFunc,omega, plot=False)
     magdbG, magdbT = mag2db(magG), mag2db(magT)
     phiGHz, phiTHz = phiG*180/pi, phiT*180/pi
     self.bodesource.data={'omega':omega, 'freqHz':(omega/(2*np.pi)),
@@ -583,7 +584,7 @@ class SISOApp:
       pORz = list(filter(lambda x: x>1e-6, func1(dict1[key1][0])))
       magdB, phideg, fHz = [], [], []
       if pORz:
-        mag,phi,omega = bode(self.OLTF, pORz, Plot=False)
+        mag,phi,omega = bode(self.OLTF, pORz, plot=False)
         magdB, phideg, fHz = mag2db(mag), phi*180/pi, (omega/(2*np.pi))
         for q in range(len(phideg)):
           if phideg[q] > 90: phideg[q] = phideg[q]-360;
@@ -618,7 +619,7 @@ class SISOApp:
     self.kvect = db2mag(kvectdB)
     Kgp, Kgz = np.zeros(len(self.GpPoles)), np.Inf*np.ones(len(self.GpZeros))
     Kcp, Kcz = np.zeros(len(self.CPoles)), np.Inf*np.ones(len(self.CZeros))
-    self.rootsVect,_ = rlocus(self.OLTF/Cgain,Plot=False,kvect=self.kvect)
+    self.rootsVect,_ = rlocus(self.OLTF/Cgain,plot=False,kvect=self.kvect)
     re, im, rootsVect = np.real, np.imag, self.rootsVect
     Krlocus,  cols = self.kvect,  self.rootsVect.shape[1]-1
     for x in range(cols):  Krlocus = np.column_stack((Krlocus,self.kvect))
@@ -650,17 +651,22 @@ class SISOApp:
     else:         self.Stabilitytxt.text = 'Stable Loop'
 
   def updateStepResponse(self):
-    Gmf = feedback(self.OLTF, 1)
+    Gmf = minreal(feedback(self.OLTF, 1), tol=1e-6, verbose=False)
     Gru = feedback(self.CTransfFunc, self.GpTransfFunc)
-    tau5_Gmf = np.abs(5/np.min(np.real(Gmf.pole()))) #5 constantes de tempo
-    nmax = np.round(tau5_Gmf/self.Ts)
-    tvec = linspace(0,nmax*self.Ts, int(nmax+1))
-    ymf,tvec = step(Gmf, tvec)
-    #rt = tvec[next(i for i in range(0,len(ymf)-1) if ymf[i]>ymf[-1]*.90)]-tvec[0]
-    try: st = tvec[next(len(ymf)-q for q in range(2,len(ymf)-1) if abs(ymf[-q]/ymf[-1])>1.02)]
-    except: st = tvec[-1]
+    p_dom = np.real(Gmf.pole())
+    wp_dom = np.abs(p_dom) if self.Ts is None else np.abs(np.log(p_dom))/self.Ts
+    tau5_Gmf = np.abs(5/np.min(wp_dom)) #5 constantes de tempo
     if self.Ts is None:
-        ymf,tvec = step(Gmf, T=np.linspace(0,3*st,100))
+      tvec = linspace(0,tau5_Gmf, 200)
+    else:
+      nmax = np.round(tau5_Gmf/self.Ts)
+      tvec = linspace(0,nmax*self.Ts, int(nmax+1))
+    ymf,tvec = step(Gmf, T=tvec)
+    #rt = tvec[next(i for i in range(0,len(ymf)-1) if ymf[i]>ymf[-1]*.90)]-tvec[0]
+    #try: st = tvec[next(len(ymf)-q for q in range(2,len(ymf)-1) if abs(ymf[-q]/ymf[-1])>1.02)]
+    #except: st = tvec[-1]
+    #if self.Ts is None:
+    #    ymf,tvec = step(Gmf, T=np.linspace(0,3*st,100))
     yma,_ = step(self.GpTransfFunc, T=tvec)
     umf,_ = step(Gru, T=tvec)
     self.stepsource.data={'t_s':tvec,'stepRYmf':ymf,'stepUYma':yma,'stepRUmf':umf }
