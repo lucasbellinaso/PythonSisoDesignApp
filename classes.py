@@ -13,7 +13,6 @@ from matplotlib import pyplot as plt
 
 
 
-
 class PoleOrZeroClass:
   """
     TYPE: 'pole', 'zero'
@@ -30,24 +29,24 @@ class PoleOrZeroClass:
 
     box_layout = widgets.Layout(display='flex', align_items='stretch', width='200px')
     self.FrequencyWidget = BoundedFloatText(description=r"freq (Hz)",
-                           value = (1. if Ts is None else 0.1/Ts ), min=0.001,
-                           max=(1e6 if Ts is None else 0.499/Ts), step = 0.001,
+                           value = (1. if Ts == None else 0.1/Ts ), min=0.001,
+                           max=(1e6 if Ts == None else 0.499/Ts), step = 0.001,
                            continuous_update=True, layout = box_layout)
-    if omega is not None: self.FrequencyWidget.value = omega/(2*pi)
+    if omega != None: self.FrequencyWidget.value = omega/(2*pi)
     self.DampingRatioWidget = BoundedFloatText(description=r'Damp.Ratio',
-                           value=(0.1 if csi is None else csi), step = 0.001,
+                           value=(0.1 if csi == None else csi), step = 0.001,
                            min=0, max=1, continuous_update=True,layout = box_layout)
     self.FrequencySetButton = Button(description='Set',layout=widgets.Layout(width='100px'))
     self.DeleteButton = Button(description='Delete', layout=widgets.Layout(width='100px'))
     self.DeleteButton.on_click(self.deletePoleZero)
     self.FrequencySetButton.on_click(AppInstance.updateTFAndBokeh)
     self.PZIndexInApp = len(AppInstance.PolesAndZerosList)
-    if SUBTYPE is 'real':
+    if SUBTYPE == 'real':
       self.PoleZeroDefineWidget = HBox([self.FrequencyWidget,self.FrequencySetButton])
-      if self.Ts is None: self.num, self.den = array([0,1]),array([0,1])
+      if self.Ts in [None, 0.]: self.num, self.den = array([0,1]),array([0,1])
       else:               self.num, self.den = array([0,1]),array([0,1])
-    elif SUBTYPE is 'complex':
-      if self.Ts is None: self.num,self.den = array([0,0,1]), array([0,0,1])
+    elif SUBTYPE == 'complex':
+      if self.Ts in [None, 0.0]: self.num,self.den = array([0,0,1]), array([0,0,1])
       else:               self.num,self.den = array([0,0,1]), array([0,0,1])
       self.PoleZeroDefineWidget = HBox([VBox([self.FrequencyWidget,
            self.DampingRatioWidget]), self.FrequencySetButton], Layout ='flex')     
@@ -69,20 +68,20 @@ class PoleOrZeroClass:
     self.freqHz = self.FrequencyWidget.value
     self.csi = self.DampingRatioWidget.value
     poly, w0, csi = [] , 2*pi*self.freqHz, self.csi
-    if self.Ts is None:  #continuous time system
-      if   self.SUBTYPE is 'real':    poly = np.array([1/w0, 1])
-      elif self.SUBTYPE is 'complex': poly = np.array([1/w0**2, 2*csi/w0, 1])
+    if self.Ts in [None, 0.0]:  #continuous time system
+      if   self.SUBTYPE == 'real':    poly = np.array([1/w0, 1])
+      elif self.SUBTYPE == 'complex': poly = np.array([1/w0**2, 2*csi/w0, 1])
       else:                           poly = np.array([1,0])
     else:                #discrete-time system
       Ts, pz = self.Ts,  np.exp(-w0*self.Ts)
-      if self.SUBTYPE is 'real':  poly = np.array([1,-pz])/(1-pz)
-      elif self.SUBTYPE is 'complex':
+      if self.SUBTYPE == 'real':  poly = np.array([1,-pz])/(1-pz)
+      elif self.SUBTYPE == 'complex':
             a1 = -2*exp(-self.csi*w0*Ts)*cos(w0*sqrt(1-csi**2)*Ts)
             a2 =  exp(-2*self.csi*w0*Ts)
             poly = array([1,a1,a2])/(1+a1+a2)
       else: poly = 1/Ts*array([1,-1])  #integrator or differentiator
-    if   self.TYPE is 'zero':  self.num = poly
-    elif self.TYPE is 'pole':  self.den = poly
+    if   self.TYPE == 'zero':  self.num = poly
+    elif self.TYPE == 'pole':  self.den = poly
     self.ZPtf = tf(self.num,self.den,self.Ts)
     return 0
 
@@ -90,16 +89,16 @@ class PoleOrZeroClass:
     display(self.Widget)
 
   def printNumOrDen(self,num_den_key):
-    if num_den_key is 'num' and self.TYPE is 'zero': poly = self.num
-    elif  num_den_key is 'den' and self.TYPE is 'pole': poly = self.den
+    if num_den_key == 'num' and self.TYPE == 'zero': poly = self.num
+    elif  num_den_key == 'den' and self.TYPE == 'pole': poly = self.den
     else: return ''
     if self.SUBTYPE in ['integrator','differentiator']:
-      return 's' if self.Ts is None else f'{poly[0]:.2f}(z-1)'
-    if self.SUBTYPE is 'real':
-      if self.Ts is None: return f'(s/{(1/poly[0]):.2f}+1)'
+      return 's' if self.Ts in [None, 0.0] else f'{poly[0]:.2f}(z-1)'
+    if self.SUBTYPE == 'real':
+      if self.Ts in [None, 0.0]: return f'(s/{(1/poly[0]):.2f}+1)'
       else: return f'{poly[0]:.2f}(z{(poly[1]/poly[0]):.4f})'
-    if self.SUBTYPE is 'complex':
-      if self.Ts is None:
+    if self.SUBTYPE == 'complex':
+      if self.Ts in [None, 0.0]:
         w0 = (2*pi*self.freqHz)
         a1s = '' if self.csi == 0  else f'+s(2*{self.csi:.3f}/{w0:.2f})'
         return f'((s/{w0:.2f})²{a1s}+1)'
@@ -111,7 +110,7 @@ class PoleOrZeroClass:
     
   def deletePoleZero(self,b):
     # Changes the relative order when pole or zero is deleted:
-    delta = (-1 if self.TYPE is 'pole' else 1)*(2 if self.SUBTYPE is 'complex' else 1)
+    delta = (-1 if self.TYPE == 'pole' else 1)*(2 if self.SUBTYPE == 'complex' else 1)
     self.AppInstance.relatOrderC += delta
     if self.AppInstance.relatOrderC<0:
       print('Controller should not have more zeros than poles. First delete a zero!')
@@ -177,13 +176,13 @@ class SISOApp:
     self.OLTF = tf(1,1,self.Ts)
     self.PhaseMargin, self.GainMargin = 0,0
     self.rootsVect = []
-    self.fNyquistHz = 1e6 if self.Ts is None else 0.5/self.Ts;
-    if Gc is None:
+    self.fNyquistHz = 1e6 if self.Ts in [None, 0.0] else 0.5/self.Ts;
+    if Gc == None:
         self.CTransfFunc = tf(1,1, self.Ts)
     else:
         assert Gc.dt == Gp.dt ,  'Gc.dt should be equal to Gp.dt'
         self.CTransfFunc = Gc
-    if Gf is None: self.GfTransfFunc = tf(1,1, self.Ts)
+    if Gf == None: self.GfTransfFunc = tf(1,1, self.Ts)
     else:
         assert Gf.dt == Gp.dt ,  'Gf.dt should be equal to Gp.dt'
         self.GfTransfFunc = Gf
@@ -223,7 +222,7 @@ class SISOApp:
     self.numC, self.denC = Gc.num[0][0],Gc.den[0][0]
     self.CZeros, self.CPoles, self.Kgain  = tf2zpk(self.numC,self.denC)
     self.relatOrderC = len(self.CPoles) - len(self.CZeros)
-    pzIntDiff = 0.0 if self.Ts is None else 1.0
+    pzIntDiff = 0.0 if self.Ts in [None, 0.0] else 1.0
     zeros_filt = list(filter(lambda x: np.abs(x-pzIntDiff)>=1e-6, self.CZeros ))
     poles_filt = list(filter(lambda x: np.abs(x-pzIntDiff)>=1e-6, self.CPoles ))
     num,den = zpk2tf(zeros_filt, poles_filt, 1)
@@ -231,7 +230,7 @@ class SISOApp:
     self.Kgain = Gtemp.dcgain()
     assert len(self.CPoles)>=len(self.CZeros), 'Gc should not have more zeros than poles.'
     self.CgainInDBInteract.value = mag2db(self.Kgain)
-    if Gc.dt is not None:
+    if Gc.dt != None:
       assert all(np.abs(self.CPoles)<=1), 'Gc(z) should not have unstable poles.'
       assert all(np.abs(self.CZeros)<=1), 'Gc(z) should not have non minimum phase zeros.'
       omegaZ, omegaP = np.log(self.CZeros)/Gc.dt, np.log(self.CPoles)/Gc.dt
@@ -260,17 +259,17 @@ class SISOApp:
           PoleOrZeroClass('pole','real', self.Ts, self,omega=np.abs(p)))
 
   def insertPoleZero(self,b):
-    if self.NewPZDropdown.value is not ' ':
+    if self.NewPZDropdown.value != ' ':
       PZtype_dict = {'integrator': ['pole','integrator'],
           'differentiator': ['zero','differentiator'],
           'real pole': ['pole','real'], 'real zero': ['zero','real'],
           'complex pole': ['pole','complex'],'complex zero': ['zero','complex']}
       PZtype, PZsubtype = PZtype_dict[self.NewPZDropdown.value]
-      if PZtype is 'pole':
-        if PZsubtype is 'complex': self.relatOrderC += 2
+      if PZtype == 'pole':
+        if PZsubtype == 'complex': self.relatOrderC += 2
         else:                      self.relatOrderC += 1
       else:
-        if PZsubtype is 'complex': self.relatOrderC -= 2
+        if PZsubtype == 'complex': self.relatOrderC -= 2
         else:                      self.relatOrderC -= 1
       self.PolesAndZerosList.append(PoleOrZeroClass(PZtype,PZsubtype,self.Ts,self))
       self.NewPZDropdown.value = ' '
@@ -371,7 +370,7 @@ class SISOApp:
                                         [self.figAng, self.figTResp]])
 
 
-    if self.Ts is None:   #continuous time
+    if self.Ts in [None, 0.0]:   #continuous time
       self.figRLoc.add_layout(self.shadows['rloc_s'])
     else:                 #discrete time
         for strkey in ['rloc_z1', 'rloc_z2', 'rloc_z3', 'rloc_z4']:
@@ -424,7 +423,7 @@ class SISOApp:
     self.Clbltxt = Label(x=5, y=20, x_units='screen', y_units='screen', 
                          text=' ',  render_mode='css',border_line_color=None,
                         background_fill_color='white',text_font_size = '11px')
-    self.Clbltxt.text = 'C(s) = ' if self.Ts is None else 'C(z) = '
+    self.Clbltxt.text = 'C(s) = ' if self.Ts in [None, 0.0] else 'C(z) = '
     self.Cgaintxt = Label(x=40, y=20, x_units='screen', y_units='screen', 
                          text='K',  render_mode='css',border_line_color=None,
                         background_fill_color='white',text_font_size = '11px')
@@ -470,7 +469,7 @@ class SISOApp:
     self.figTResp.add_layout(bokeh.models.LinearAxis(y_range_name="u_range",
                                                      axis_label='u'), 'right')
     self.figTResp.y_range = bokeh.models.Range1d(start = -0.1, end = 1.4)
-    if self.Ts is None:
+    if self.Ts in [None, 0.0]:
       stepR2Y=self.figTResp.line(x='t_s', y='stepRYmf',color="blue",
                                  line_width=1.5, name='y',
                         legend_label='y (closed loop)',  source=self.stepsource)
@@ -575,17 +574,17 @@ class SISOApp:
           for q in range(len(omegaVec)):
             if omegaVec[q]>omega_nyqu: omegaVec[q] = omega_nyqu
           return omegaVec
-    func1 = np.abs if self.Ts is None else d2c_clampAtNyquistFreq
+    func1 = np.abs if self.Ts in [None, 0.0] else d2c_clampAtNyquistFreq
     dict1 = {'Gpp': [self.GpPoles,self.gpbodesource],
              'Gpz': [self.GpZeros,self.gzbodesource],
              'CP' : [self.CPoles,self.cpbodesource],
              'CZ' : [self.CZeros,self.czbodesource]}
     for key1 in ['Gpp','Gpz','CP','CZ']:
-      pORz = list(filter(lambda x: x>1e-6, func1(dict1[key1][0])))
+      pORz = list(filter(lambda x: x>1e-5, func1(dict1[key1][0])))
       magdB, phideg, fHz = [], [], []
       if pORz:
         mag,phi,omega = bode(self.OLTF, pORz, plot=False)
-        magdB, phideg, fHz = mag2db(mag), phi*180/pi, (omega/(2*np.pi))
+        magdB, phideg, fHz = mag2db(mag), phi*180/pi, (omega/(2*pi))
         for q in range(len(phideg)):
           if phideg[q] > 90: phideg[q] = phideg[q]-360;
       dict1[key1][1].data={'fHz':list(fHz),'magdB':list(magdB),'angdeg':list(phideg)}
@@ -606,9 +605,9 @@ class SISOApp:
     if np.isnan(wc): wc = 2*np.pi*self.fNyquistHz
     self.PMSpan.location = wc/(2*np.pi)
     self.GMSpan.location = wg/(2*np.pi)
-    if str(self.GainMargin) is 'inf':  self.GMtxt.text = 'GM: inf'
+    if str(self.GainMargin) == 'inf':  self.GMtxt.text = 'GM: inf'
     else: self.GMtxt.text = f'GM:{self.GainMargin:.1f} dB'
-    if str(self.PhaseMargin) is 'inf': self.PMtxt.text = 'PM: inf'
+    if str(self.PhaseMargin) == 'inf': self.PMtxt.text = 'PM: inf'
     else: self.PMtxt.text = f'PM: {self.PhaseMargin:.1f}°'
 
   def createRLocus(self):
@@ -646,7 +645,7 @@ class SISOApp:
     x,y = np.real(self.rootsVect[Kindex]), np.imag(self.rootsVect[Kindex])
     K = self.kvect[Kindex]*np.ones(len(list(x)))
     self.krlocussource.data = {'x': x , 'y': y, 'K':K} 
-    comp = (x>0) if self.Ts is None else  ((x*x+y*y)>1)
+    comp = (x>0) if self.Ts in [None, 0.0] else  ((x*x+y*y)>1)
     if any(comp): self.Stabilitytxt.text = 'Unstable Loop'
     else:         self.Stabilitytxt.text = 'Stable Loop'
 
@@ -654,19 +653,14 @@ class SISOApp:
     Gmf = minreal(feedback(self.OLTF, 1), tol=1e-6, verbose=False)
     Gru = feedback(self.CTransfFunc, self.GpTransfFunc)
     p_dom = np.real(Gmf.pole())
-    wp_dom = np.abs(p_dom) if self.Ts is None else np.abs(np.log(p_dom))/self.Ts
+    wp_dom = np.abs(p_dom) if self.Ts in [None, 0.0] else np.abs(np.log(p_dom))/self.Ts
     tau5_Gmf = np.abs(5/np.min(wp_dom)) #5 constantes de tempo
-    if self.Ts is None:
+    if self.Ts in [None, 0.0]:
       tvec = linspace(0,tau5_Gmf, 200)
     else:
       nmax = np.round(tau5_Gmf/self.Ts)
       tvec = linspace(0,nmax*self.Ts, int(nmax+1))
     ymf,tvec = step(Gmf, T=tvec)
-    #rt = tvec[next(i for i in range(0,len(ymf)-1) if ymf[i]>ymf[-1]*.90)]-tvec[0]
-    #try: st = tvec[next(len(ymf)-q for q in range(2,len(ymf)-1) if abs(ymf[-q]/ymf[-1])>1.02)]
-    #except: st = tvec[-1]
-    #if self.Ts is None:
-    #    ymf,tvec = step(Gmf, T=np.linspace(0,3*st,100))
     yma,_ = step(self.GpTransfFunc, T=tvec)
     umf,_ = step(Gru, T=tvec)
     self.stepsource.data={'t_s':tvec,'stepRYmf':ymf,'stepUYma':yma,'stepRUmf':umf }
@@ -684,3 +678,4 @@ class SISOApp:
     N,D,K = self.printController(0)
     self.Cnumtxt.text, self.Cdentxt.text, self.Cgaintxt.text = 'N','D','K'
     self.Cnumtxt.text, self.Cdentxt.text, self.Cgaintxt.text = N,D,K
+
