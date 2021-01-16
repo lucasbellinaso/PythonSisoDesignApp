@@ -29,8 +29,8 @@ class PoleOrZeroClass:
 
     box_layout = widgets.Layout(display='flex', align_items='stretch', width='200px')
     self.FrequencyWidget = BoundedFloatText(description=r"freq (Hz)",
-                           value = (1. if Ts == None else 0.1/Ts ), min=0.001,
-                           max=(1e6 if Ts == None else 0.499/Ts), step = 0.001,
+                           value = (1. if Ts in [None, 0.0] else 0.1/Ts ), min=0.001,
+                           max=(1e6 if Ts in [None, 0.0] else 0.499/Ts), step = 0.001,
                            continuous_update=True, layout = box_layout)
     if omega != None: self.FrequencyWidget.value = omega/(2*pi)
     self.DampingRatioWidget = BoundedFloatText(description=r'Damp.Ratio',
