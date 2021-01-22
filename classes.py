@@ -13,6 +13,8 @@ from matplotlib import pyplot as plt
 
 
 
+
+
 class PoleOrZeroClass:
   """
     TYPE: 'pole', 'zero'
@@ -180,11 +182,13 @@ class SISOApp:
     if Gc == None:
         self.CTransfFunc = tf(1,1, self.Ts)
     else:
-        assert Gc.dt == Gp.dt ,  'Gc.dt should be equal to Gp.dt'
+        condicoes = [Gp.dt in [None, 0.0] and Gp.dt in [None, 0.0], Gc.dt==Gp.dt]
+        assert any(condicoes) ,  'Gc.dt should be equal to Gp.dt'
         self.CTransfFunc = Gc
     if Gf == None: self.GfTransfFunc = tf(1,1, self.Ts)
     else:
-        assert Gf.dt == Gp.dt ,  'Gf.dt should be equal to Gp.dt'
+        condicoes = [Gp.dt in [None, 0.0] and Gf.dt in [None, 0.0], Gf.dt==Gp.dt]
+        assert any(condicoes) ,  'Gf.dt should be equal to Gp.dt'
         self.GfTransfFunc = Gf
 
     #Create ipywidgets layout and events:
@@ -678,4 +682,3 @@ class SISOApp:
     N,D,K = self.printController(0)
     self.Cnumtxt.text, self.Cdentxt.text, self.Cgaintxt.text = 'N','D','K'
     self.Cnumtxt.text, self.Cdentxt.text, self.Cgaintxt.text = N,D,K
-
