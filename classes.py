@@ -573,7 +573,8 @@ class SISOApp:
                          'magdBT':magdbT, 'magT':magT, 'angT':phiTHz}
     self.updatePMGM()
     def d2c_clampAtNyquistFreq(PZdiscr):
-          omegaVec = np.abs(np.log(PZdiscr))/self.Ts
+          PZdiscr1 = list(filter(lambda x: np.real(x)>=0, PZdiscr))
+          omegaVec = np.abs(np.log(PZdiscr1))/self.Ts
           omega_nyqu = 2*np.pi*self.fNyquistHz
           for q in range(len(omegaVec)):
             if omegaVec[q]>omega_nyqu: omegaVec[q] = omega_nyqu
@@ -656,8 +657,8 @@ class SISOApp:
   def updateStepResponse(self):
     Gmf = minreal(feedback(self.OLTF, 1), tol=1e-6, verbose=False)
     Gru = feedback(self.CTransfFunc, self.GpTransfFunc)
-    p_dom = np.real(Gmf.pole())
-    wp_dom = np.abs(p_dom) if self.Ts in [None, 0.0] else np.abs(np.log(p_dom))/self.Ts
+    p_dom = np.abs(np.real(Gmf.pole()))
+    wp_dom = p_dom if self.Ts in [None, 0.0] else -np.log(p_dom)/self.Ts
     tau5_Gmf = np.abs(5/np.min(wp_dom)) #5 constantes de tempo
     if self.Ts in [None, 0.0]:
       tvec = linspace(0,tau5_Gmf, 200)
