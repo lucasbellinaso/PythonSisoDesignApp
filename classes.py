@@ -1,128 +1,761 @@
-import bokeh
-from bokeh.models import ColumnDataSource, Span, Band, Label
-from bokeh.plotting import figure as BkFig
-from control.matlab import tf,c2d,bode,nyquist,rlocus,step,feedback,lsim,minreal
-from control.matlab import margin, mag2db, db2mag
-from scipy.signal import tf2zpk, zpk2tf
-import numpy as np
-from numpy import array, sin, cos, pi, exp, log, log10, sqrt, linspace, logspace
-import ipywidgets as widgets
-from ipywidgets import BoundedFloatText,Button,HBox,VBox,AppLayout,Dropdown
-from IPython.display import display, clear_output
-from matplotlib import pyplot as plt
 
+class PoleOrZeroClass():
+  csi0 = 0.707
+  relatOrderC = 0
+  from numpy import sqrt
 
+  dict_TXT0func_TFc = {'': (lambda w,csi: ''),
+                      'integrator': (lambda w,csi: 's'),
+                      'differentiator': (lambda w,csi: 's'),
+                      'real pole': (lambda w,csi: f'(s/{w:.4f} + 1)'),
+                      'real zero': (lambda w,csi: f'(s/{w:.4f} + 1)'),
+                      'complex pole': (lambda w,csi: f'(s²/{(w**2):.4f}{"" if csi==0 else f"+ s {2*csi:.4f}/{w:.4f}"} + 1)')  ,
+                      'complex zero': (lambda w,csi: f'(s²/{(w**2):.4f}{"" if csi==0 else f"+ s {2*csi:.4f}/{w:.4f}"} + 1)')}
+  dict_NUMfunc_TFc = {'': (lambda w,csi: [1]),
+                      'integrator': (lambda w,csi: [0,1]),
+                      'differentiator': (lambda w,csi: [1,0]),
+                      'real pole': (lambda w,csi: [0,1]),
+                      'real zero': (lambda w,csi: [1/w,1]),
+                      'complex pole': (lambda w,csi: [0,0,1]),
+                      'complex zero': (lambda w,csi: [1/w**2,2*csi/w,1])}
+  dict_DENfunc_TFc = {'': (lambda w,csi: [1]),
+                      'integrator': (lambda w,csi: [1,0]),
+                      'differentiator':(lambda w,csi: [0,1]),
+                     'real pole':  (lambda w,csi: [1/w,1]),
+                      'real zero': (lambda w,csi: [0,1]),
+                      'complex pole': (lambda w,csi: [1/w**2,2*csi/w,1]),
+                      'complex zero': (lambda w,csi: [0,0,1])}                 
+  dict_NUMfunc_TFd = {'': (lambda pz,a1,a2,Ts:[1]),
+                      'integrator':(lambda pz,a1,a2,Ts: [0,1]),
+                      'differentiator':(lambda pz,a1,a2,Ts: [1/Ts,-1/Ts]),
+                      'real pole':  (lambda pz,a1,a2,Ts: [0,1]), 
+                      'real zero': (lambda pz,a1,a2,Ts: [1/(1-pz), -pz/(1-pz)]),
+                      'complex pole': (lambda pz,a1,a2,Ts: [0,0,1]),
+                      'complex zero': (lambda pz,a1,a2,Ts: [1/(1+a1+a2),a1/(1+a1+a2),a2/(1+a1+a2)]),
+                      'unit delay': (lambda pz,a1,a2,Ts: [0,1]),
+                      'unit advance': (lambda pz,a1,a2,Ts: [1,0]) }
+  dict_DENfunc_TFd = {'': (lambda pz,a1,a2,Ts:[1]),
+                      'integrator': (lambda pz,a1,a2,Ts: [1/Ts,-1/Ts]),
+                      'differentiator': (lambda pz,a1,a2,Ts: [0,1]),
+                      'real pole': (lambda pz,a1,a2,Ts: [1/(1-pz), -pz/(1-pz)]), 
+                      'real zero': (lambda pz,a1,a2,Ts: [0,1]),
+                      'complex pole': (lambda pz,a1,a2,Ts: [1/(1+a1+a2),a1/(1+a1+a2),a2/(1+a1+a2)]),
+                      'complex zero': (lambda pz,a1,a2,Ts: [0,0,1]),
+                      'unit delay': (lambda pz,a1,a2,Ts: [1,0]),
+                      'unit advance': (lambda pz,a1,a2,Ts: [0,1]) }
+  dict_TXT0func_TFd = {'': (lambda pz,a1,a2,Ts: ''),
+                      'integrator': (lambda pz,a1,a2,Ts: f'(z {1/Ts:.4e} {-1/Ts:.4e})'),
+                      'differentiator': (lambda pz,a1,a2,Ts: f'(z {1/Ts:.4e} {-1/Ts:.4e})'),
+                      'real pole': (lambda pz,a1,a2,Ts: f'(z {1/(1-pz):.4e} {-pz/(1-pz):.4e})'),
+                      'real zero': (lambda pz,a1,a2,Ts: f'(z {1/(1-pz):.4e} {-pz/(1-pz):.4e})'),
+                      'complex pole': (lambda pz,a1,a2,Ts: f'(z² {1/(1+a1+a2):.4e} - z {-a1/(1+a1+a2):.4e} + {a2/(1+a1+a2):.4e}'),
+                      'complex zero': (lambda pz,a1,a2,Ts: f'(z² {1/(1+a1+a2):.4e} - z {-a1/(1+a1+a2):.4e} + {a2/(1+a1+a2):.4e}'),
+                      'unit delay': (lambda pz,a1,a2,Ts: 'z'),
+                      'unit advance': (lambda pz,a1,a2,Ts: 'z')}
+  dict_Poles={'': (lambda den,Ts: []),
+             'integrator': (lambda den,Ts: [(0 if Ts in [0,None] else 1)]),
+             'differentiator':(lambda den,Ts: []),
+             'real pole':(lambda den,Ts: [-den[1]/den[0]]),
+              'real zero':(lambda den,Ts: []),
+             'complex pole': (lambda den,Ts: [(-den[1]+1j*(4*den[0]*den[2]-den[1]**2)**0.5)/(2*den[0]) ,
+                                              (-den[1]-1j*(4*den[0]*den[2]-den[1]**2)**0.5)/(2*den[0])]),
+             'complex zero': (lambda den,Ts: []),
+              'unit delay': (lambda den,Ts: ([] if Ts in [0,None] else [0])  ),
+              'unit advance': (lambda den,Ts: [] )}
+  dict_Zeros={'': (lambda num,Ts: []),
+             'integrator': (lambda num,Ts: []),
+              'differentiator':(lambda num,Ts: [(0 if Ts in [0,None] else 1)]),
+             'real zero':(lambda num,Ts: [-num[1]/num[0]]),
+              'real pole':(lambda num,Ts: []),
+             'complex zero': (lambda num,Ts: [(-num[1]+1j*(4*num[0]*num[2]-num[1]**2)**0.5)/(2*num[0]) ,
+                                              (-num[1]-1j*(4*num[0]*num[2]-num[1]**2)**0.5)/(2*num[0])]),
+             'complex pole': (lambda num,Ts: []),
+              'unit advance': (lambda num,Ts: ([] if Ts in [0,None] else [0])  ),
+              'unit delay': (lambda num,Ts: [] ) }
+  POLEtypes = ['integrator', 'real pole', 'complex pole', 'unit delay']
+  ZEROtypes = ['differentiator', 'real zero', 'complex zero', 'unit advance']
+  d_relatOrd = {'': 0, 'integrator': 1, 'real pole': 1, 'complex pole': 2, 'unit delay': 1,
+            'differentiator': -1, 'real zero': -1, 'complex zero': -2, 'unit advance': -1}
 
+  def __init__(self, Ts):
+    from ipywidgets import Dropdown, Checkbox, BoundedFloatText, Button, Layout, Text, Label
 
+    LayS = Layout(display='flex', align_items='stretch', width='50px')
+    LayM = Layout(display='flex', align_items='stretch', width='110px')
+    LayL = Layout(display='flex', align_items='stretch', width='300px')
 
-class PoleOrZeroClass:
-  """
-    TYPE: 'pole', 'zero'
-    SUBTYPE:'real', 'complex',  'integrator' or 'differentiator'
-    Ts: None for continous time,  or float>0 for discrete-time
-  """  
-  def __init__(self,TYPE,SUBTYPE,Ts,AppInstance,omega=None, csi=None):
-    self.TYPE, self.SUBTYPE = TYPE, SUBTYPE
-    self.num, self.den = np.array([0,1]), np.array([0,1])
-    self.freqHz, self.csi = 0, 1
     self.Ts = Ts
-    self.AppInstance = AppInstance
-    self.ZPtf = tf(1,1,Ts)   #default: integrator pole
+    self.relatOrderC = 0
+    self.oldPZType = ''
+    self.freq0_Hz = 100 if self.Ts in [0, None] else 0.1/self.Ts
+    self.fNy_Hz = 1e6 if self.Ts in [0, None] else 0.5/self.Ts
+    self.ENwgt = Checkbox(value=False, description='', disabled=False, indent=False, layout = LayS)
+    self.ENwgt.observe(self.enable_disable_PZ, names='value')
+    self.TYwgt = Dropdown( options=['','integrator', 'real pole', 'complex pole',
+                                   'differentiator', 'real zero', 'complex zero'],
+                           value='', description='',  disabled=True, layout = LayM)
+    self.TYwgt.observe(self.change_PZtype, names='value')
+    self.Fwgt = BoundedFloatText( value=self.freq0_Hz,  min=1e-3, max = self.fNy_Hz,
+                                 continuous_update=True, step=1e-2,
+                                 description='', disabled=True, layout = LayM)
+    self.Fwgt.observe(self.change_freqOrCsi, names='value')
+    self.CSIwgt = BoundedFloatText( value=self.csi0,  min=0, max=0.999, continuous_update=True,
+                                step=1e-3,  description='', disabled=True,  layout = LayM)
+    self.CSIwgt.observe(self.change_freqOrCsi, names='value')
+    self.SETwgt = Button(description='Set',  disabled=True,
+                        button_style='', # 'success', 'info', 'warning', 'danger' or ''
+                        tooltip='Set', icon='check',
+                        layout = Layout(display='flex', align_items='stretch', width='65px')) 
+    self.SETwgt.on_click(self.set_button_on_click)
+    self.SETwgt.observe(self.set_button_changes_status, names='button_style')
 
-    box_layout = widgets.Layout(display='flex', align_items='stretch', width='200px')
-    self.FrequencyWidget = BoundedFloatText(description=r"freq (Hz)",
-                           value = (1. if Ts in [None, 0.0] else 0.1/Ts ), min=0.001,
-                           max=(1e6 if Ts in [None, 0.0] else 0.499/Ts), step = 0.001,
-                           continuous_update=True, layout = box_layout)
-    if omega != None: self.FrequencyWidget.value = omega/(2*pi)
-    self.DampingRatioWidget = BoundedFloatText(description=r'Damp.Ratio',
-                           value=(0.1 if csi == None else csi), step = 0.001,
-                           min=0, max=1, continuous_update=True,layout = box_layout)
-    self.FrequencySetButton = Button(description='Set',layout=widgets.Layout(width='100px'))
-    self.DeleteButton = Button(description='Delete', layout=widgets.Layout(width='100px'))
-    self.DeleteButton.on_click(self.deletePoleZero)
-    self.FrequencySetButton.on_click(AppInstance.updateTFAndBokeh)
-    self.PZIndexInApp = len(AppInstance.PolesAndZerosList)
-    if SUBTYPE == 'real':
-      self.PoleZeroDefineWidget = HBox([self.FrequencyWidget,self.FrequencySetButton])
-      if self.Ts in [None, 0.]: self.num, self.den = array([0,1]),array([0,1])
-      else:               self.num, self.den = array([0,1]),array([0,1])
-    elif SUBTYPE == 'complex':
-      if self.Ts in [None, 0.0]: self.num,self.den = array([0,0,1]), array([0,0,1])
-      else:               self.num,self.den = array([0,0,1]), array([0,0,1])
-      self.PoleZeroDefineWidget = HBox([VBox([self.FrequencyWidget,
-           self.DampingRatioWidget]), self.FrequencySetButton], Layout ='flex')     
-    else: self.PoleZeroDefineWidget = widgets.Label('')
-    Appwidget = AppLayout(header = None,
-                      left_sidebar = widgets.Label(SUBTYPE+' '+TYPE),
-                      center = self.PoleZeroDefineWidget,
-                      right_sidebar = self.DeleteButton,
-                      footer = None)
-    self.Widget = Appwidget
-    self.setFrequency(0)
+    self.TXTwgt = Label(description='', disabled = True, layout = LayL)
+    from numpy import array
+    self.PZnum, self.PZden = array([1]), array([1])
+    self.Zeros, self.Poles = array([]), array([])
 
-  def __str__(self):
-    return '{} {} {}'.format(self.TYPE, self.SUBTYPE, self.ZPtf)
-
-  def setFrequency(self,b):
-    if (self.freqHz == self.FrequencyWidget.value): 
-         if (self.csi == self.DampingRatioWidget.value): return 0
-    self.freqHz = self.FrequencyWidget.value
-    self.csi = self.DampingRatioWidget.value
-    poly, w0, csi = [] , 2*pi*self.freqHz, self.csi
-    if self.Ts in [None, 0.0]:  #continuous time system
-      if   self.SUBTYPE == 'real':    poly = np.array([1/w0, 1])
-      elif self.SUBTYPE == 'complex': poly = np.array([1/w0**2, 2*csi/w0, 1])
-      else:                           poly = np.array([1,0])
-    else:                #discrete-time system
-      Ts, pz = self.Ts,  np.exp(-w0*self.Ts)
-      if self.SUBTYPE == 'real':  poly = np.array([1,-pz])/(1-pz)
-      elif self.SUBTYPE == 'complex':
-            a1 = -2*exp(-self.csi*w0*Ts)*cos(w0*sqrt(1-csi**2)*Ts)
-            a2 =  exp(-2*self.csi*w0*Ts)
-            poly = array([1,a1,a2])/(1+a1+a2)
-      else: poly = 1/Ts*array([1,-1])  #integrator or differentiator
-    if   self.TYPE == 'zero':  self.num = poly
-    elif self.TYPE == 'pole':  self.den = poly
-    self.ZPtf = tf(self.num,self.den,self.Ts)
-    return 0
-
-  def displayPZ(self):
-    display(self.Widget)
-
-  def printNumOrDen(self,num_den_key):
-    if num_den_key == 'num' and self.TYPE == 'zero': poly = self.num
-    elif  num_den_key == 'den' and self.TYPE == 'pole': poly = self.den
-    else: return ''
-    if self.SUBTYPE in ['integrator','differentiator']:
-      return 's' if self.Ts in [None, 0.0] else f'{poly[0]:.2f}(z-1)'
-    if self.SUBTYPE == 'real':
-      if self.Ts in [None, 0.0]: return f'(s/{(1/poly[0]):.2f}+1)'
-      else: return f'{poly[0]:.2f}(z{(poly[1]/poly[0]):.4f})'
-    if self.SUBTYPE == 'complex':
-      if self.Ts in [None, 0.0]:
-        w0 = (2*pi*self.freqHz)
-        a1s = '' if self.csi == 0  else f'+s(2*{self.csi:.3f}/{w0:.2f})'
-        return f'((s/{w0:.2f})²{a1s}+1)'
-      else:
-        az0 = '+1))' if (self.csi==0) else f'+{(poly[2]/poly[0]):.4f}))'
-        signal1 = '+' if (poly[1]>0) else ''
-        return f'({poly[0]:.4f}(z²{signal1}{(poly[1]/poly[0]):.4f}z'+az0
-
-    
-  def deletePoleZero(self,b):
-    # Changes the relative order when pole or zero is deleted:
-    delta = (-1 if self.TYPE == 'pole' else 1)*(2 if self.SUBTYPE == 'complex' else 1)
-    self.AppInstance.relatOrderC += delta
-    if self.AppInstance.relatOrderC<0:
-      print('Controller should not have more zeros than poles. First delete a zero!')
-      self.AppInstance.relatOrderC -= delta
-    else:
-      del self.AppInstance.PolesAndZerosList[self.PZIndexInApp]
-      for x in range(self.PZIndexInApp,len(self.AppInstance.PolesAndZerosList)):
-        self.AppInstance.PolesAndZerosList[x].PZIndexInApp -= 1 
-      self.AppInstance.updateTFAndScreen(0)
+  def enable_disable_PZ(self, dict_observe):
+    disable = dict_observe['old']  #True to disable. False to enable
+    self.SETwgt.button_style = ''  #first resets "set" button -> runs "set_button_changes_status"
+    self.TYwgt.value = ''          #resets type. If changed -> runs  "change_PZtype"
+    self.TYwgt.disabled = disable  
   
+  def change_PZtype(self, dict_observe):
+    from numpy import array
+    newPZType, oldPZType = dict_observe['new'], dict_observe['old']
+    self.PZnum, self.PZden = array([1]), array([1])
+    self.oldPZType = oldPZType
+    self.SETwgt.button_style = ''  #first resets "set" button -> runs "set_button_changes_status"
+    self.oldPZType = newPZType   #updates after using method "set_button_changes_status"
+    self.SETwgt.disabled = True if newPZType == '' else False
+    self.Fwgt.disabled = True if newPZType in ['','integrator','differentiator'] else False
+    self.CSIwgt.disabled = False if newPZType in ['complex pole','complex zero'] else True
+    self.TXTwgt.disabled = True if newPZType == '' else False
+    self.Fwgt.value = self.freq0_Hz
+    self.CSIwgt.value = self.csi0
+    self.show_update_tf_text()
+
+  def change_freqOrCsi(self, dict_observe):
+    self.SETwgt.button_style = ''
+    from numpy import array
+    self.PZnum, self.PZden = array([1]), array([1])
+    self.show_update_tf_text()
+
+  def set_button_on_click(self, value):
+    if self.SETwgt.button_style == '' and (    #roda somente quando deve mudar de estado
+        (self.TYwgt.value in ['integrator', 'real pole', 'complex pole', 'unit delay']) 
+         or ( self.TYwgt.value in ['differentiator', 'real zero', 'unit advance']  and PoleOrZeroClass.relatOrderC>=1 )
+         or ( self.TYwgt.value == 'complex zero'  and PoleOrZeroClass.relatOrderC>=2 ) ):
+      #If everything is a success:
+      self.SETwgt.button_style = 'success'  #->after this, runs "set_button_changes_status"
+    else:
+      print('Gc should not have more zeros than poles. First set the poles.')
+
+  def set_button_changes_status(self,dict_observe):
+    '''Changes the relative order or the controller '''
+    oldStatus, newStatus = dict_observe['old'], dict_observe['new']
+    if newStatus == 'success':
+      PoleOrZeroClass.relatOrderC +=  self.d_relatOrd[self.oldPZType]  #increases relat orde
+    else:  #if new status is ''
+      PoleOrZeroClass.relatOrderC -=  self.d_relatOrd[self.oldPZType]  #removes relat order
+
+  def show_update_tf_text(self):
+    '''Runs always when anything changes'''
+    from numpy import pi, exp, cos, sqrt, array
+    w, csi = 2*pi*self.Fwgt.value,  self.CSIwgt.value
+    if self.Ts in [0, None]:   #continuous-time system
+      self.TXTwgt.value = ( ('1/' if self.TYwgt.value in self.POLEtypes else '')
+                          + (self.dict_TXT0func_TFc[self.TYwgt.value])(w,csi)   )
+      self.PZnum = array((self.dict_NUMfunc_TFc[self.TYwgt.value])(w,csi))
+      self.PZden = array((self.dict_DENfunc_TFc[self.TYwgt.value])(w,csi))
+    else:   #discrete-time systems
+      a1, a2, pz = -2*exp(-csi*w*self.Ts)*cos(w*sqrt(1-csi**2)*self.Ts), exp(-2*csi*w*self.Ts), exp(-w*self.Ts)
+      self.TXTwgt.value = ( ('1/' if self.TYwgt.value in self.POLEtypes else '')
+                          + (self.dict_TXT0func_TFd[self.TYwgt.value])(pz,a1,a2,self.Ts)   )
+      self.PZnum =  array((self.dict_NUMfunc_TFd[self.TYwgt.value])(pz,a1,a2,self.Ts))
+      self.PZden =  array((self.dict_DENfunc_TFd[self.TYwgt.value])(pz,a1,a2,self.Ts))
+    self.Poles = array( (self.dict_Poles[self.TYwgt.value])(self.PZden, self.Ts))
+    self.Zeros = array( (self.dict_Zeros[self.TYwgt.value])(self.PZnum, self.Ts))
+    #self.TXTwgt.value = str(self.Zeros) + ' / ' + str(self.Poles)
+
+  def printNumOrDen(self, num_den_key):
+    if self.SETwgt.button_style == '': return ''
+    if num_den_key=='num' and self.TYwgt.value in self.POLEtypes: return ''
+    if num_den_key=='den' and self.TYwgt.value in self.ZEROtypes: return ''
+    from numpy import pi, exp, cos, sqrt, array
+    w, csi = 2*pi*self.Fwgt.value,  self.CSIwgt.value
+    if self.Ts in [0,None]:
+      return (self.dict_TXT0func_TFc[self.TYwgt.value])(w,csi)
+    else:
+      a1 = -2*exp(-csi*w*self.Ts)*cos(w*sqrt(1-csi**2)*self.Ts)
+      a2 = exp(-2*csi*w*self.Ts)
+      pz = exp(-w*self.Ts)
+      return (self.dict_TXT0func_TFd[self.TYwgt.value])(pz,a1,a2,self.Ts)
+    
+ 
+# Célula 2:
+
+from control import TransferFunction
+
+class ControllerSISOApp(TransferFunction):
+  def __init__(self, num, den, dt = 0, start_configWgt = False, quantity_PZs = 4):
+    from numpy import arange, real, log, round, array
+    super().__init__(num,den,dt)
+    self.Poles = self.pole()
+    self.Zeros = self.zero()
+    self._update_num_norm_den_norm()
+    self._update_Kdcgain()
+    self.set_by_zpk_minreal(self.Zeros,self.Poles, self.Kdcgain)
+    #print(f'1) SZeros = {self.SZeros} \n SPoles = {self.SPoles}')
+
+    if start_configWgt:  #initialization
+      self.PZwidgets = []
+      #Create ipywidgets layout and events:
+      from ipywidgets import VBox, Label, HBox, FloatSlider, Button, HTML, Layout
+      from control import db2mag
+      ENBox, TYBox, FBox = [Label('Enable')], [Label('Type')], [Label('Frequency (Hz)')]
+      CSIBox = [Label('ζ (damping ratio)')]
+      self.SETBox =  [Button(description='Set All',  disabled=False, button_style='', tooltip='Set', icon='check',
+                 layout = Layout(display='flex', align_items='stretch', width='65px')) ]
+      TXTBox = [Label('Transfer Function')]
+
+      for q in range(quantity_PZs):
+          PoleOrZeroClass.relatOrderC = 0
+          self.PZwidgets.append(PoleOrZeroClass(self.dt))
+          ENBox.append(self.PZwidgets[q].ENwgt)
+          TYBox.append(self.PZwidgets[q].TYwgt)
+          FBox.append(self.PZwidgets[q].Fwgt)
+          CSIBox.append(self.PZwidgets[q].CSIwgt)
+          self.SETBox.append(self.PZwidgets[q].SETwgt)
+          TXTBox.append(self.PZwidgets[q].TXTwgt)
+
+      minCGainIndB, maxCGainIndB, CGainStepIndB = -80, 80, 0.5
+      self.kvectdB = list(arange(minCGainIndB,maxCGainIndB, CGainStepIndB ))
+      self.kvect = list(db2mag( array(self.kvectdB)))
+      self.dKdcgain = 1
+      self.CgainInDBInteract = FloatSlider(value=0, min=minCGainIndB, 
+                                       max=maxCGainIndB, step=CGainStepIndB, 
+                                       layout=Layout(width='410px',display='flex', align_items='stretch'),
+                                       description = '',
+                                       #description = '|G<sub>c</sub>| dB:',
+                                       continuous_update=True)
+      self.ControllerName = (f"G<sub>c</sub>({'s' if self.dt in {0,None} else 'z'}) = 1")
+      self.ControllerText = HTML(value = self.ControllerName,
+                                 layout=Layout(width='450px',display='flex', align_items='stretch'))
+      self.Appwidget = VBox([HBox([VBox(ENBox),VBox(TYBox),VBox(FBox),VBox(CSIBox),VBox(self.SETBox),VBox(TXTBox)]),
+                           HBox([HTML(r'|G<sub>c</sub>| dB:',layout=Layout(width='50px',display='flex', align_items='flex-start')),
+                                 self.CgainInDBInteract, self.ControllerText])   ]  )
+      
+      #Put given controller to Widget:
+      self._init_PZwidgets_by_given_controller()
+      self.print_to_PZwidgets()
+      if len(self.SPoles)>=1: self.SETBox[0].button_style = 'success'
+
+      #Define events:
+      self.CgainInDBInteract.observe(self.set_Kdcgain_by_PZwidgets,'value')
+      for q in range(len(self.PZwidgets)):
+        self.PZwidgets[q].SETwgt.observe(self.set_PZs_from_PZwidgets, names='button_style')
+        self.PZwidgets[q].ENwgt.observe(self.enable_change_clear_set_all, names='value')
+      self.SETBox[0].on_click(self.set_all_on_click)
+
+  def print_latex(self,latex_raw_equation):
+    from IPython.display import Math, HTML
+    display(HTML(r"<script src='https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.3/latest.js?config=default'></script>"))
+    return Math(latex_raw_equation)
+
+  def _init_PZwidgets_by_given_controller(self):
+    '''Inits the PZwidgets by a given controller'''
+    from numpy import abs, real, imag, pi
+    from control import mag2db, db2mag
+    assert (len(self.Poles)+len(self.Zeros)<=len(self.PZwidgets)), 'Increase variable "quantity_PZs".'
+    for q in range(len(self.PZwidgets)):
+        self.PZwidgets[q].ENwgt.value = False   #first disables everything
+    p_integrator = 0 if self.dt in [None, 0.0] else 1.0
+    q = 0
+    for p in self.SPoles:
+        self.PZwidgets[q].ENwgt.value = True
+        if abs(p-p_integrator)<1e-6:
+          self.PZwidgets[q].TYwgt.value = 'integrator'
+        elif imag(p)>1e-6:
+          self.PZwidgets[q].TYwgt.value = 'complex pole'
+          self.PZwidgets[q].Fwgt.value =  abs(p)/(2*pi)
+          self.PZwidgets[q].CSIwgt.value = abs(real(p))/abs(p)
+        else: 
+          self.PZwidgets[q].TYwgt.value = 'real pole'
+          self.PZwidgets[q].Fwgt.value = abs(p)/(2*pi)
+        self.PZwidgets[q].SETwgt.button_style = 'success'
+        q += 1
+    for z in self.SZeros:
+        self.PZwidgets[q].ENwgt.value = True
+        if abs(z-p_integrator)<1e-6:
+          self.PZwidgets[q].TYwgt.value = 'differentiator'
+        elif imag(z)>1e-6:
+          self.PZwidgets[q].TYwgt.value = 'complex zero'
+          self.PZwidgets[q].Fwgt.value =  abs(z)/(2*pi)
+          self.PZwidgets[q].CSIwgt.value = abs(real(z))/abs(z)
+        else: 
+          self.PZwidgets[q].TYwgt.value = 'real zero'
+          self.PZwidgets[q].Fwgt.value = abs(z)/(2*pi)
+        self.PZwidgets[q].SETwgt.button_style = 'success'
+        q += 1
+    self._update_num_norm_den_norm()
+    self._update_Kdcgain()
+    self.CgainInDBInteract.value = mag2db(self.Kdcgain)
+    #self.set_PZs_from_PZwidgets(0)
+
+  def set_PZs_from_PZwidgets(self, button_style):
+    '''Runs when the "Set" Buttons change
+       Sets the controller by pulling data from the PZ widgets'''
+    if button_style['new']=='success':
+      #Here inserts all poles and zeros with 'success'
+      notcompletePZs = [ (self.PZwidgets[q].ENwgt.value ^ (self.PZwidgets[q].SETwgt.button_style=='success')) for q in range(len(self.PZwidgets))]
+      #if not any(notcompletePZs):  #if all complete 
+      self.SETBox[0].button_style = 'success' if not any(notcompletePZs) else '' #"Set All" Button = all success
+    else:     #not success
+      self.SETBox[0].button_style = ''
+      if PoleOrZeroClass.relatOrderC<0:  #if problems when removing
+        for q in range(len(self.PZwidgets)):
+            self.PZwidgets[q].SETwgt.button_style = '' #unsets everything ->
+    #Set the Poles and Zeros:
+    from numpy import array, concatenate
+    Poles, Zeros = array([]), array([])
+    for q in range(len(self.PZwidgets)):
+      if self.PZwidgets[q].SETwgt.button_style == 'success':
+          Poles = concatenate((Poles, self.PZwidgets[q].Poles))
+          Zeros = concatenate((Zeros, self.PZwidgets[q].Zeros))
+    self.set_by_zpk_minreal(Zeros,Poles,self.Kdcgain)
+    self.print_to_PZwidgets()
+
+  def set_Kdcgain_by_PZwidgets(self, b):
+    from control import db2mag, mag2db
+    Kdcgain_old = self.Kdcgain 
+    Kdcgain_new = db2mag(self.CgainInDBInteract.value)
+    self.dKdcgain = Kdcgain_new/Kdcgain_old
+    self.num[0][0] = self.num[0][0]*Kdcgain_new/Kdcgain_old
+    self.Kdcgain = Kdcgain_new
+    self.print_to_PZwidgets()
+
+  def print_to_PZwidgets(self):
+    numstr, denstr ='', ''
+    for q in range(len(self.PZwidgets)):
+      numstr = numstr + self.PZwidgets[q].printNumOrDen('num')
+      denstr = denstr + self.PZwidgets[q].printNumOrDen('den')
+    if len(numstr)<1: numstr = '1'
+    if len(denstr)<1: denstr = '1'
+    equation_string = r'{self.Kdcgain:.4f} \frac{ numstr }{denstr}'
+    self.ControllerText.value = f"G<sub>c</sub>({'s' if self.dt in {0,None} else 'z'}) = {self.Kdcgain:.4f} <sup>{numstr}</sup>&frasl;<sub>{denstr}</sub>"
+
+  def set_by_zpk_minreal(self, Zeros, Poles, Kdcgain):
+    r""" Run after setting Poles and Zeros in the App
+    Gc(s) = Gain*
+    :math: `G_c(s) = K_{gain} \frac{\prod_i (s/\omega_{zi} + 1)}{\prod_i (s/\omega_{pi} + 1)}`
+    """
+    from numpy import array, round
+    self.Kdcgain = Kdcgain
+    Poles, Zeros = round(Poles,6), round(Zeros,6)
+    common_values = set(Zeros) & set(Poles)  #find commonn poles and zeros
+    Zeros, Poles = list(Zeros), list(Poles)
+    for value in common_values:
+      Zeros.remove(value)  #removes equal poles and zeros
+      Poles.remove(value)
+    self.Zeros, self.Poles = array(Zeros), array(Poles)
+    self._update_num_norm_den_norm()
+    self._update_relatOrder()
+    self._update_SPoles_SZeros()
+    super().__init__(self.Kdcgain*self.num_norm , self.den_norm, self.dt)
+
+  def _update_relatOrder(self):
+    '''After updating  self.Zeros and self.Poles'''
+    self.relatOrderC = len(self.Poles)-len(self.Zeros)
+    PoleOrZeroClass.relatOrderC = self.relatOrderC
+    assert self.relatOrderC>=0, 'Gc should not have more zeros than poles.'
+  
+  def _update_SPoles_SZeros(self):
+    '''After updating  self.Zeros and self.Poles
+      SPoles and SZeros are in rad/s
+    '''
+    from numpy import seterr, log, round, real
+    seterr(divide = 'ignore', invalid = 'ignore')
+    self.SPoles = self.Poles if self.dt in [0,None] else round(log(self.Poles)/self.dt,6)  #z = exp(s*Ts)
+    self.SZeros = self.Zeros if self.dt in [0,None] else round(log(self.Zeros)/self.dt,6)
+    seterr(divide = 'warn', invalid = 'warn')
+    #assert all(real(self.SPoles)<=0), 'Gc(s) should not have unstable poles.'
+    #assert all(real(self.SZeros)<=0), 'Gc(s) should not have non minimum phase zeros.'
+
+  def _update_num_norm_den_norm(self):
+    '''After updating  self.Zeros and self.Poles'''
+    from numpy import abs, array, flipud, round, convolve, sum, real
+    from numpy.polynomial.polynomial import polyfromroots
+    p_integrator = 0 if self.dt in [None, 0.0] else 1.0
+    Zeros_filt = list(filter(lambda x: abs(x-p_integrator)>=1e-6, self.Zeros ))
+    quantity_differentiators = len(self.Zeros)- len(Zeros_filt)
+    Poles_filt = list(filter(lambda x: abs(x-p_integrator)>=1e-6, self.Poles ))
+    quantity_integrators = len(self.Poles) - len(Poles_filt)
+    num_filt = flipud(polyfromroots(Zeros_filt))
+    den_filt = flipud(polyfromroots(Poles_filt))
+    if self.dt in [0, None]:    #continuous-time
+      num_filt /= num_filt[-1]
+      den_filt /= den_filt[-1]
+      num_diff = array([1] + quantity_differentiators*[0])
+      den_int = array([1] + quantity_integrators*[0])
+    else:                  #discrete-time
+      num_filt /= sum(num_filt)
+      den_filt /= sum(den_filt)
+      num_diff, den_int = array([1]), array([1])
+      for q in range(quantity_differentiators):  num_diff = convolve(num_diff,[1,-1])
+      for q in range(quantity_integrators):  den_int = convolve(den_int,[1,-1])
+    self.num_norm = real(round(convolve(num_filt, num_diff),12))
+    self.den_norm = real(round(convolve(den_filt, den_int),12))
+
+  def _update_Kdcgain(self):
+    '''Works only after running "update_num_norm_den_norm" '''
+    from scipy.signal import tf2zpk
+    from numpy import real, round
+    _,_,k1 = tf2zpk(self.num_norm, self.den_norm)
+    _,_,k2 = tf2zpk(self.num[0][0], self.den[0][0])
+    self.Kdcgain = round(real(k2/k1),12)
+
+  def enable_change_clear_set_all(self,b):
+    self.SETBox[0].button_style = ''
+    if self.SETBox[0].button_style == '':   #if all enabled others are ready:
+      notcompletePZs = [ (self.PZwidgets[q].ENwgt.value ^ (self.PZwidgets[q].SETwgt.button_style=='success')) for q in range(len(self.PZwidgets))]
+      if not any(notcompletePZs):  #if all complete 
+        self.SETBox[0].button_style = 'success'  #"Set All" Button = success
+
+  def set_all_on_click(self, value):
+    for q in range(len(self.PZwidgets)):
+      if self.PZwidgets[q].TYwgt.value in PoleOrZeroClass.POLEtypes:  #poles
+        self.PZwidgets[q].set_button_on_click(0)
+    for q in range(len(self.PZwidgets)):  #zeros
+      if self.PZwidgets[q].TYwgt.value in PoleOrZeroClass.ZEROtypes:   #zeros
+        self.PZwidgets[q].set_button_on_click(0)
+
+# Celula 3:
+
+
+class DisturbancesWidget():
+  freq0_Hz = 1
+  tmax_s = 10
+  dt_s   = 1e-3
+
+  dic_configs = {'': {'f': [True, 0],  't': [True,''],       'a':[True,''],        'dadt': [True, 0]   },  #[disabled, value]
+            'steps': {'f': [True, 0],  't': [False,'0, 1'],  'a':[False,'1, 0.9'], 'dadt': [False, 1e9]},  #[disabled, value]
+             'sine': {'f': [False,60], 't': [False,'0, 1'],  'a':[False,'1, 0.9'], 'dadt': [False, 1e9]},  #[disabled, value]
+           'square': {'f': [False,60], 't': [False,'0, 1'],  'a':[False,'1, 0.9'], 'dadt': [False, 1e9]},  #[disabled, value]
+         'triangle': {'f': [False,60], 't': [False,'0, 1'],  'a':[False,'1, 0.9'], 'dadt': [False, 1e9]   },  #[disabled, value]
+              'PWL': {'f': [True,0],   't': [False,'0, 1'],  'a':[False,'1, 0.9'], 'dadt': [True, 0]   },  #[disabled, value]
+            'P-PWL': {'f': [True,0],   't': [False,'0, 1'],  'a':[False,'1, 0.9'], 'dadt': [True, 0]   },  #[disabled, value]
+            'noise': {'f':[False,1000],'t': [False,'0'],     'a':[False,'1'],      'dadt': [False, 1e9]}}  #[disabled, value]    
+  dic_description = {'': '',
+                'steps': '"Amplitude" is set at given "time" points.',
+                 'sine': '"Amplitude" is set at given "time" points. "Amplitude" can be a complex number (a+bj) in order to change the angle.',
+               'square': '"Amplitude" is set at given "time" points.',
+             'triangle': '"Amplitude" is set at given "time" points.',
+                  'PWL': 'Piecewise Linear Function: set "time" and "amplitude" points.',
+                'P-PWL': 'Peridic Piecewise Linear Function: set "time" and "amplitude" points. Period = last "Time point".',
+                'noise': '"Amplitude points" is the standard deviation.   "Freq (Hz)": BandWidth for 1st order LPF. '}
+  def __init__(self, tmax_s = 10, dt_s = 1e-3, freq0_Hz = 1):
+    from numpy import array, arange, zeros_like
+    self.tmax_s, self.dt_s, self.freq0_Hz = tmax_s, dt_s, freq0_Hz
+    self.timeVec_s = arange(0, self.tmax_s, self.dt_s)
+    self.waveVec = zeros_like(self.timeVec_s)
+    self.Time_points = array([0])
+    self.Amplitude_points = array([0])
+
+    from ipywidgets import Dropdown, Checkbox, BoundedFloatText, Button, Layout, Text, Label
+
+    LayS = Layout(display='flex', align_items='stretch', width='50px')
+    LayS1 =  Layout(display='flex', align_items='stretch', width='65px')
+    LayM = Layout(display='flex', align_items='stretch', width='100px')
+    LayM1 = Layout(display='flex', align_items='stretch', width='120px')
+    LayL = Layout(display='flex', align_items='stretch', width='300px')
+    self.ENwgt = Checkbox(value=False, description='', disabled=False, indent=False, layout = LayS)
+    self.INwgt = Dropdown( options=['','r', 'du', 'dy', 'dm'],
+                           value='', description='',  disabled=True, layout = LayS)
+    self.TYwgt = Dropdown( options=list(DisturbancesWidget.dic_configs.keys()),  #_|‾ ∿  ⎍  ⌵⌵
+                           value='', description='',  disabled=True, layout = LayM)
+    self.Fwgt = BoundedFloatText( value=self.freq0_Hz,  min=0, max = 1e6,
+                                 continuous_update=True, step=1e-2,
+                                 description='', disabled=True, layout = LayS1)
+    self.Tvecwgt = Text( value='',  continuous_update=True, description='',
+                         disabled=True,  layout = LayM1)
+    self.Avecwgt = Text( value='',  continuous_update=True, description='',
+                         disabled=True,  layout = LayM1)
+    self.dAdtwgt = BoundedFloatText( value=999999999,  min=0, max = 999999999,
+                                 continuous_update=True, step=1e-1,
+                                 description='', disabled=True, layout = LayM)
+    self.SETwgt = Button(description='Set',  disabled=True,
+                        button_style='', # 'success', 'info', 'warning', 'danger' or ''
+                        tooltip='Set', icon='check', layout = LayS1) 
+    self.TXTwgt = Text(description='', disabled = False, layout = LayL)
+
+    #Events:
+    self.ENwgt.observe(self.changes_Enable, names = 'value')
+    self.INwgt.observe(self.changes_SignalInput, names = 'value')
+    self.TYwgt.observe(self.changes_SignalType, names='value')
+    self.Fwgt.observe(self.changes_FreqOrAmpOrTimeOrdAmpdt, names='value')
+    self.Tvecwgt.observe(self.changes_FreqOrAmpOrTimeOrdAmpdt, names='value')
+    self.Avecwgt.observe(self.changes_FreqOrAmpOrTimeOrdAmpdt, names='value')
+    self.dAdtwgt.observe(self.changes_FreqOrAmpOrTimeOrdAmpdt, names='value')
+    self.SETwgt.on_click(self.clicked_set_button)
+    self.SETwgt.observe(self.changes_set_button, names='button_style')
+
+  def changes_Enable(self,b):
+    self.SETwgt.disabled = not b['new']
+    self.INwgt.value = ''
+    self.INwgt.disabled = not b['new']
+    self.TYwgt.value = ''
+    self.TYwgt.disabled = not b['new']
+
+  def changes_SignalType(self,b):
+    new_type = b['new']
+    self.Fwgt.disabled =    self.dic_configs[new_type]['f'][0]
+    self.Fwgt.value =       self.dic_configs[new_type]['f'][1]
+    self.Tvecwgt.disabled = self.dic_configs[new_type]['t'][0]
+    self.Tvecwgt.value =    self.dic_configs[new_type]['t'][1]
+    self.Avecwgt.disabled = self.dic_configs[new_type]['a'][0]
+    self.Avecwgt.value =    self.dic_configs[new_type]['a'][1]
+    self.dAdtwgt.disabled = self.dic_configs[new_type]['dadt'][0]
+    self.dAdtwgt.value =    self.dic_configs[new_type]['dadt'][1]
+    self.TXTwgt.value =     self.dic_description[new_type]
+    self.SETwgt.button_style = ''
+  
+  def changes_SignalInput(self,b):
+    self.SETwgt.button_style = ''
+
+  def changes_FreqOrAmpOrTimeOrdAmpdt(self,b):
+    self.SETwgt.button_style = ''
+  
+  def clicked_set_button(self,b):
+    from numpy import matrix, asarray, diff, all, insert, real
+    if (self.SETwgt.button_style == '' and self.TYwgt.value != '' and self.INwgt.value != ''):
+      self.Time_points = asarray(matrix(self.Tvecwgt.value))[0]
+      self.Amplitude_points = asarray(matrix(self.Avecwgt.value))[0]
+      if self.TYwgt.value != 'sine': self.Amplitude_points = real(self.Amplitude_points)
+      if ((len(self.Time_points) == len(self.Amplitude_points)) and  #same quantity of points
+           all(self.Time_points[:-1] < self.Time_points[1:]) and
+            self.Time_points[0]>=0):
+        self.SETwgt.button_style = 'success'
+        if self.Time_points[0] != 0:
+              self.Time_points = insert(self.Time_points,0,0) 
+              self.Amplitude_points = insert(self.Amplitude_points,0,0) 
+      else:
+        print('"Amplitude" and "Time" must have the same quantity of points. "Time points" must be positive and in ascending order.')
+        self.SETwgt.button_style = 'warning'
+
+  def changes_set_button(self,b):
+    new_style, old_style = b['new'], b['old']
+    #print('Set button changed status')
+    if new_style == 'success':
+      self.create_waveVec(0)  #Creates Waveform Vector
+
+  def create_waveVec(self,b):
+    from numpy import array, zeros_like, piecewise, logical_and, any, arange
+    from scipy.signal import sawtooth
+    Amp_funcs, Condlist = [], []
+    self.timeVec_s = arange(0, self.tmax_s, self.dt_s)
+    if self.TYwgt.value in ['steps','sine','square','triangle', 'noise']:
+        tf_dAdt = self.Time_points[0]
+        for q in range(len(self.Amplitude_points)-1):
+          #1) Includes constant part:
+          condition = logical_and( self.timeVec_s >= tf_dAdt , self.timeVec_s < self.Time_points[q+1]) 
+          if any(condition):
+              Condlist.append( condition )
+              Amp_funcs.append( (lambda t, c = self.Amplitude_points[q]: c) )
+          #2) Includes dAdt parts:
+          Ampl_init = Amp_funcs[-1](self.Time_points[q+1])  #if appended: const amplitude. Else: lambda func
+          conditionVec, funcdAdt, tf_dAdt = self._return_dAdt_condition_func_tfinal(self.Time_points[q+1], Ampl_init, self.Amplitude_points[q+1])
+          if any(conditionVec):
+              Condlist.append(conditionVec)
+              Amp_funcs.append(funcdAdt)
+        #Last point:
+        Condlist.append( self.timeVec_s >= tf_dAdt )
+        Amp_funcs.append( (lambda t, c=self.Amplitude_points[-1]: c) )
+
+    elif  self.TYwgt.value in ['PWL','P-PWL']:
+        if (self.TYwgt.value == 'P-PWL') and (self.Time_points[-1] < self.tmax_s):
+            self.timeVec_s = arange(0, self.Time_points[-1], self.dt_s)  #reduces self.timeVec_s to fit into the repeating period
+        for q in range(len(self.Amplitude_points)-1):
+          conditionVec, funcPWL = self._return_PWL_condition_func(self.Time_points[q], self.Time_points[q+1], self.Amplitude_points[q], self.Amplitude_points[q+1])
+          Condlist.append(conditionVec)
+          Amp_funcs.append(funcPWL)
+        Amp_funcs.append(lambda t: self.Amplitude_points[-1])
+    tvec = self.timeVec_s if self.TYwgt.value != 'sine' else self.timeVec_s.astype('complex128')
+    self.waveVec = piecewise(tvec, Condlist, Amp_funcs)
+
+    if self.TYwgt.value == 'sine':
+        from numpy import real, imag, pi, sin, cos
+        a, b, w = real(self.waveVec), imag(self.waveVec),  2*pi*self.Fwgt.value
+        self.waveVec = a*sin(w*self.timeVec_s) - b*cos(w*self.timeVec_s)
+    elif self.TYwgt.value in ['square', 'triangle']:
+        from scipy.signal import sawtooth, square
+        from numpy import pi
+        func = square if self.TYwgt.value == 'square' else sawtooth
+        self.waveVec = self.waveVec*func(2*pi*self.Fwgt.value*self.timeVec_s, 0.5)
+    elif self.TYwgt.value == 'P-PWL':  #post-processing periodic signal
+        from numpy import tile
+        repeating_times = int(self.tmax_s/self.Time_points[-1])+1
+        self.timeVec_s = arange(0, self.tmax_s, self.dt_s)
+        self.waveVec = (tile(self.waveVec, repeating_times))[:len(self.timeVec_s)]
+    elif self.TYwgt.value == 'noise':
+        from numpy import random, pi, std
+        from scipy.signal import lfilter
+        noise_amp1 = random.normal(size = len(self.timeVec_s))
+        if (self.Fwgt.value < 0.5/self.dt_s):  #Nyquist   #filter
+          wTs = 2*pi*self.Fwgt.value*self.dt_s
+          noise_amp1 = lfilter([1, 1],[(1+2/wTs), (1-2/wTs)], noise_amp1)
+          noise_amp1 = noise_amp1/std(noise_amp1)
+        #change amplitude over time:
+        self.waveVec = self.waveVec*noise_amp1
+
+  def _return_dAdt_condition_func_tfinal(self, time_init_s, Ampl_init, Ampl_final):
+    from numpy import logical_and, abs
+    if self.dAdtwgt.value == self.dAdtwgt.max:
+      time_final_s = time_init_s
+      conditionVec = [False]  #returns False
+      func = lambda t, Ai=Ampl_init:  Ai
+    else:
+      time_final_s = time_init_s + abs(Ampl_final-Ampl_init)/self.dAdtwgt.value
+      conditionVec = logical_and( self.timeVec_s >= time_init_s, self.timeVec_s < time_final_s)
+      signal_direction = (Ampl_final-Ampl_init)/abs(Ampl_final-Ampl_init)
+      dAdt = self.dAdtwgt.value*signal_direction
+      func = lambda t, Ai=Ampl_init, ti=time_init_s, dadt=dAdt: Ai+(t-ti)*dadt
+    return conditionVec,  func, time_final_s
+
+  def _return_PWL_condition_func(self, time_init_s, time_final_s, Ampl_init, Ampl_final):
+    from numpy import logical_and
+    alpha = (Ampl_final-Ampl_init)/(time_final_s-time_init_s)
+    conditionVec = logical_and( self.timeVec_s >= time_init_s, self.timeVec_s < time_final_s)
+    return conditionVec,  lambda t, Ai=Ampl_init, ti=time_init_s, dAdt=alpha:   Ai+(t-ti)*dAdt
+
+#Celula 3:
+
+class ControlAnalysisWidget():
+  def __init__(self, tmax_s = 10, dt_s = 1e-5, freq0_Hz = 1, discrete=False, quantity_disturbances = 4):
+    from ipywidgets import BoundedFloatText, HBox, VBox, Layout, Label, Dropdown, Checkbox, Button, Text
+    from numpy import array
+
+    self.waveVec_dict = {'t_s': array([]), 'r': array([]), 'du': array([]),
+                         'dy': array([]), 'dm': array([]), 'u': array([]), 'y':array([])}
+
+    #Requirements:
+    self.OShotIn = BoundedFloatText(value = 10, min=0, max=100, continuous_update=False,
+                            layout = Layout(width='100px'))
+    self.RTimeIn = BoundedFloatText(value = 0.1, min=0, continuous_update=False,
+                             layout = Layout(width='100px'))
+    self.STimeIn = BoundedFloatText(value = 0.1, min=0, continuous_update=False,
+                             layout = Layout(width='100px'))
+    self.RequirementsTab = HBox([VBox([Label('Max Overshot (%)'), self.OShotIn  ])  ,
+                           VBox([Label('Max Rise Time (s)'), self.RTimeIn  ]) ,
+                           VBox([Label('Max Settling Time (s)'), self.STimeIn])] )
+    
+    #Input signals
+    self.DistWgts = []  #DisturbancesWidget
+    self.ENbox, self.INbox = [Label('Enable')]         , [Label('Input')]
+    self.TYbox, self.Fbox  = [Label('Signal')]         , [Label('Freq (Hz)')]
+    self.Tbox,  self.Abox  = [Label('Time points (s)')], [Label('Amplitude points')]
+    self.dAdtbox = [Label('Max Ampl/s')]
+    self.SETAllButton = Button(description='Set All',  disabled=False, button_style='', tooltip='Set', icon='check',
+                                layout=Layout(align_items='stretch', width='65px') )
+       
+    self.SETbox = [self.SETAllButton]
+    self.TXTbox = [Label('Description')]
+    for q in range(quantity_disturbances):
+        self.DistWgts.append(DisturbancesWidget())
+        self.ENbox.append(self.DistWgts[q].ENwgt)
+        self.INbox.append(self.DistWgts[q].INwgt)
+        self.TYbox.append(self.DistWgts[q].TYwgt)
+        self.Fbox.append(self.DistWgts[q].Fwgt)
+        self.Tbox.append(self.DistWgts[q].Tvecwgt)
+        self.Abox.append(self.DistWgts[q].Avecwgt)
+        self.dAdtbox.append(self.DistWgts[q].dAdtwgt)
+        self.SETbox.append(self.DistWgts[q].SETwgt)
+        self.TXTbox.append(self.DistWgts[q].TXTwgt)
+    
+    self.TotalTimeWgt = BoundedFloatText(description = 'Total Time (s)',value = tmax_s, 
+                      min=0, max=1e6, continuous_update=False, layout = Layout(width='180px'))
+    self.StepTimeWgt = BoundedFloatText(description = 'Step Time (s)', value = dt_s, min=0, max=1, continuous_update=False,
+                        layout = Layout(width='180px'), disable = discrete)
+    self.PrintTimeWgt = BoundedFloatText(description = 'Print Time (s)', value = 0, min=0, max=10, continuous_update=False,
+                        layout = Layout(width='180px'))
+    self.SetTimeWgt =  Button(description='Set',  disabled=False, button_style='', tooltip='Set', icon='check',
+                                layout=Layout(align_items='stretch', width='65px') )
+    self.TimeconfigWgt = HBox([self.TotalTimeWgt, self.StepTimeWgt, self.PrintTimeWgt, self.SetTimeWgt])
+    self.DistConfigApp = HBox([VBox(self.ENbox),VBox(self.INbox),VBox(self.TYbox),
+                         VBox(self.Fbox),VBox(self.Tbox),VBox(self.Abox),
+                         VBox(self.dAdtbox),VBox(self.SETbox),VBox(self.TXTbox)])
+    self.DisturbSimulationTab = VBox([self.TimeconfigWgt, self.DistConfigApp])
+    
+    #Define events:
+    for q in range(len(self.DistWgts)):
+        self.DistWgts[q].SETwgt.observe(self.verify_complete_disturbs, names='button_style')
+        self.DistWgts[q].ENwgt.observe(self.enable_change_clear_set_all, names='value')
+    self.SETAllButton.on_click(self.set_all_on_click)
+    self.SETAllButton.observe(self.set_disturbs_to_SisoApp, names = 'button_style')
+    self.SetTimeWgt.on_click(self.set_time_configs_to_App)
+    self.set_time_configs_to_App(0)
+    self.TotalTimeWgt.observe(self.reset_set_time_button, names =  'value')
+    self.StepTimeWgt.observe(self.reset_set_time_button,  names = 'value')
+    #Events requirements:
+    self.RTimeIn.observe(self.adjust_SettlingTime_requirements,  names = 'value')
+
+  def enable_change_clear_set_all(self,b):
+    self.SETAllButton.button_style = ''
+    if self.SETAllButton.button_style == '':   #if all enabled others are ready:
+      notcompletePZs = [ (self.DistWgts[q].ENwgt.value ^ (self.DistWgts[q].SETwgt.button_style=='success')) for q in range(len(self.DistWgts))]
+      if not any(notcompletePZs):  #if all complete 
+        self.SETAllButton.button_style = 'success'  #"Set All" Button = success
+
+  def set_all_on_click(self, value):
+    self.SETAllButton.button_style = ''
+    for q in range(len(self.DistWgts)):
+      self.DistWgts[q].clicked_set_button(0)
+
+  def verify_complete_disturbs(self, button_style):
+    if button_style['new']=='success':
+      notcompletes = [ (self.DistWgts[q].ENwgt.value ^ (self.DistWgts[q].SETwgt.button_style=='success')) for q in range(len(self.DistWgts))]
+      self.SETAllButton.button_style = 'success' if not any(notcompletes) else '' #"Set All" Button = all success 
+    else:     #not success
+      self.SETAllButton.button_style = ''
+  
+  def set_disturbs_to_SisoApp(self, button_style):
+    '''When Set All Button is turned on '''
+    if button_style['new']=='success':
+        from numpy import array, concatenate, zeros_like, real
+        tvec = real(self.DistWgts[0].timeVec_s)
+        vec0 = zeros_like(tvec)
+        self.waveVec_dict  = {'t_s': tvec, 'r': vec0, 'du': vec0, 'dy': vec0,
+                              'dm': vec0, 'u': vec0, 'y': vec0}
+        for q in range(len(self.DistWgts)):
+            if self.DistWgts[q].SETwgt.button_style == 'success':
+              key = self.DistWgts[q].INwgt.value
+              self.waveVec_dict[key] = self.waveVec_dict[key] + self.DistWgts[q].waveVec
+
+  def set_time_configs_to_App(self, b):
+    from numpy import arange
+    self.StepTimeWgt.max = min(self.StepTimeWgt.max, 0.01*self.TotalTimeWgt.value)
+    self.PrintTimeWgt.max = min(self.PrintTimeWgt.max , self.TotalTimeWgt.value)
+    DisturbancesWidget.tmax_s = self.TotalTimeWgt.value
+    DisturbancesWidget.dt_s = self.StepTimeWgt.value
+    for q in range(len(self.DistWgts)):
+      self.DistWgts[q].tmax_s = self.TotalTimeWgt.value
+      self.DistWgts[q].dt_s = self.StepTimeWgt.value
+      self.DistWgts[q].SETwgt.button_style = ''
+    self.set_all_on_click(0)
+    self.SetTimeWgt.button_style = 'success'
+
+  def reset_set_time_button(self,b):
+      self.SetTimeWgt.button_style=''
+
+  def adjust_SettlingTime_requirements(self,b):
+    self.STimeIn.min = max(self.STimeIn.min, self.RTimeIn.value)
+    
+    
+    
+#Célula 5
+
+import numpy as np
+import bokeh
  
 class SISOApp:
   '''
@@ -140,6 +773,7 @@ class SISOApp:
             u: controller output
             y: process output
             du, dy, dm:  input, output and measurement disturbances
+
                           du↓+         dy↓+
      r ──→+◯──→[Gc]──u───→+◯──→[Gp]──→+◯──┬──→ y
           -↑                         dm↓+    │
@@ -147,151 +781,77 @@ class SISOApp:
 
       Open Loop Transfer Function:  T(s) = Gc*Gp*Gf
   '''
-  OShotIn = BoundedFloatText(value = 10, min=0, max=100, continuous_update=False,
-                            layout = widgets.Layout(width='100px'))
-  RTimeIn = BoundedFloatText(value = 0.1, min=0, continuous_update=False,
-                             layout = widgets.Layout(width='100px'))
-  STimeIn = BoundedFloatText(value = 0.1, min=0, continuous_update=False,
-                             layout = widgets.Layout(width='100px'))
-  ReqWidget = HBox([VBox([widgets.Label('Max Overshot (%)'), OShotIn  ])  ,
-                   VBox([widgets.Label('Max Rise Time (s)'), RTimeIn  ]) ,
-                   VBox([widgets.Label('Max Settling Time (s)'), STimeIn])] )
-  NewPZDropdown = Dropdown(options=[' ','real pole','integrator','complex pole'],
-                           value=' ', description=' ')
-  
-  minCGainIndB, maxCGainIndB, CGainStepIndB = -80, 80, 0.5
-  kvectLen = int((maxCGainIndB-minCGainIndB)/CGainStepIndB)+1
-  kvect = list(np.linspace(minCGainIndB,maxCGainIndB,kvectLen))
-
-
-  def __init__(self, Gp, Gc=None, Gf=None):
+ 
+  def __init__(self, Gp, Gc=None, Gf=None, quantity_PZs = 4):
     """Gp: plant transfer function (Python Control Package);
        Gc (optional): controller transfer function (Python Control Package)
        Gf (optional): measurement filter transfer function
        Gp, Gc e Gf shall be of the same sample time Ts.  """
-    clear_output()
-    self.GpTransfFunc, self.Ts  = Gp, Gp.dt
-    self.GpZeros, self.GpPoles,_ = tf2zpk(Gp.num[0][0], Gp.den[0][0])
-    self.PolesAndZerosList, self.relatOrderC = [], 0
-    self.CPoles,self.CZeros,self.Kgain, self.dKgaindB = [], [], 1, 0
-    self.numC, self.denC = np.array([0,1]), np.array([0,1])
-    self.OLTF = tf(1,1,self.Ts)
+    from scipy.signal import tf2zpk
+    from numpy import array
+    from ipywidgets import Tab
+    from IPython.display import display
+
+    #IPython.display.clear_output()
+    self.dt = Gp.dt
+    self.Gp = ControllerSISOApp(Gp.num, Gp.den, self.dt)
+    self.OLTF = tf(1,1,self.dt)
     self.PhaseMargin, self.GainMargin = 0,0
     self.rootsVect = []
-    self.fNyquistHz = 1e6 if self.Ts in [None, 0.0] else 0.5/self.Ts;
-    if Gc == None:
-        self.CTransfFunc = tf(1,1, self.Ts)
+    self.fNyquistHz = 1e6 if self.dt in [None, 0.0] else 0.5/self.dt;
+    if Gc == None:  self.Gc = ControllerSISOApp(1,1, self.dt, start_configWgt=True)
     else:
-        condicoes = [Gp.dt in [None, 0.0] and Gp.dt in [None, 0.0], Gc.dt==Gp.dt]
-        assert any(condicoes) ,  'Gc.dt should be equal to Gp.dt'
-        self.CTransfFunc = Gc
-    if Gf == None: self.GfTransfFunc = tf(1,1, self.Ts)
+        conditions = [Gp.dt in [None, 0.0] and Gp.dt in [None, 0.0], Gc.dt==Gp.dt]
+        assert any(conditions) ,  'Gc.dt should be equal to Gp.dt'
+        self.Gc = ControllerSISOApp(Gc.num, Gc.den,0, start_configWgt=True,
+                                quantity_PZs = max(len(Gc.pole())+len(Gc.zero()),4) )
+    if Gf == None: self.Gf = tf(1,1, self.dt)
     else:
-        condicoes = [Gp.dt in [None, 0.0] and Gf.dt in [None, 0.0], Gf.dt==Gp.dt]
-        assert any(condicoes) ,  'Gf.dt should be equal to Gp.dt'
-        self.GfTransfFunc = Gf
+        conditions = [Gp.dt in [None, 0.0] and Gf.dt in [None, 0.0], Gf.dt==Gp.dt]
+        assert any(conditions) ,  'Gf.dt should be equal to Gp.dt'
+        self.Gf = Gf
 
-    #Create ipywidgets layout and events:
-    self.CreatePZButton = Button(description='Insert and create figure below',
-                          layout=widgets.Layout(width='200px'))
-    self.NewPoleZeroBox = HBox([widgets.Label('Add Pole or Zero:'),
-                                self.NewPZDropdown,self.CreatePZButton])
-    self.CgainInDBInteract = widgets.FloatSlider(value=0, min=self.minCGainIndB, 
-                                       max=self.maxCGainIndB, step=self.CGainStepIndB, 
-                                       layout=widgets.Layout(width='450px'),
-                                       description = 'C gain dB:',
-                                       continuous_update=True)    
-    self.updateControllerButton = Button(description='Update and print controller',
-                          layout=widgets.Layout(width='200px')) 
-    self.Appwidget = AppLayout(header = self.NewPoleZeroBox,
-                        left_sidebar = widgets.Label('Poles and Zeros:'),
-                        center = widgets.Label('Poles or Zero Widget'),
-                        right_sidebar = self.updateControllerButton,
-                        footer = HBox([self.CgainInDBInteract,self.ReqWidget]))
-    self.setControllerZPK(self.CTransfFunc)
-    self.buildBokehFigs()
-    self.updateTFAndScreen(0)
+    #Insert Widgets:
+    self.CtrAnWgt = ControlAnalysisWidget(tmax_s = 10,
+                                          dt_s = 1e-3 if self.dt in [0,None] else self.dt,
+                                          freq0_Hz = 1)
+    self.UserApp = Tab([self.Gc.Appwidget, self.CtrAnWgt.RequirementsTab,self.CtrAnWgt.DisturbSimulationTab])
+    self.UserApp.set_title(0,'Controller settings')
+    self.UserApp.set_title(1,'Requirements')
+    self.UserApp.set_title(2,'Disturbance simulation')
 
     #Define events:
-    self.CreatePZButton.on_click(self.insertPoleZero)
-    self.CgainInDBInteract.observe(self.updateGainAndBokeh,'value')
-    self.updateControllerButton.on_click(self.updateAndPrintC)
-    self.OShotIn.observe(self.updateRequirements,'value')
-    self.RTimeIn.observe(self.updateRequirements,'value')
-    self.STimeIn.observe(self.updateRequirements,'value')
-    #bokeh.io.output_notebook()
+    self.Gc.CgainInDBInteract.observe(self.updateGcgainAndBokeh,'value')
+    for q in range(len(self.Gc.PZwidgets)):
+        self.Gc.PZwidgets[q].SETwgt.observe(self.updateTFAndBokeh, 'button_style')
+    self.Gc.SETBox[0].observe(self.updateTFAndBokeh, 'button_style')
+    self.CtrAnWgt.OShotIn.observe(self.updateRequirements,'value')
+    self.CtrAnWgt.RTimeIn.observe(self.updateRequirements,'value')
+    self.CtrAnWgt.STimeIn.observe(self.updateRequirements,'value')
+    self.CtrAnWgt.SETAllButton.observe(self.updateDistResponse, 'button_style')
 
-  def setControllerZPK(self, Gc):
-    del self.PolesAndZerosList[:]
-    self.numC, self.denC = Gc.num[0][0],Gc.den[0][0]
-    self.CZeros, self.CPoles, self.Kgain  = tf2zpk(self.numC,self.denC)
-    self.relatOrderC = len(self.CPoles) - len(self.CZeros)
-    pzIntDiff = 0.0 if self.Ts in [None, 0.0] else 1.0
-    zeros_filt = list(filter(lambda x: np.abs(x-pzIntDiff)>=1e-6, self.CZeros ))
-    poles_filt = list(filter(lambda x: np.abs(x-pzIntDiff)>=1e-6, self.CPoles ))
-    num,den = zpk2tf(zeros_filt, poles_filt, 1)
-    Gtemp = tf(num,den, self.Ts)
-    self.Kgain = Gtemp.dcgain()
-    assert len(self.CPoles)>=len(self.CZeros), 'Gc should not have more zeros than poles.'
-    self.CgainInDBInteract.value = mag2db(self.Kgain)
-    if Gc.dt != None:
-      assert all(np.abs(self.CPoles)<=1), 'Gc(z) should not have unstable poles.'
-      assert all(np.abs(self.CZeros)<=1), 'Gc(z) should not have non minimum phase zeros.'
-      omegaZ, omegaP = np.log(self.CZeros)/Gc.dt, np.log(self.CPoles)/Gc.dt
-    else:
-      assert all(np.real(self.CPoles)<=0), 'Gc(s) should not have unstable poles.'
-      assert all(np.real(self.CZeros)<=0), 'Gc(s) should not have non minimum phase zeros.'
-      omegaZ, omegaP = self.CZeros, self.CPoles
+    #show screen:
+    self.buildBokehFigs()
+    asdfs = display(self.UserApp)
+    bokeh.io.output_notebook()
+    self.Bknb_handle = bokeh.io.show(self.Bkgrid, notebook_handle=True)
+    self.updateTFAndBokeh(0)
+    #self.updateBokeh()
 
-    for z in omegaZ:
-      if np.abs(z-pzIntDiff)<1e-6: self.PolesAndZerosList.append(
-              PoleOrZeroClass('zero','differentiator', self.Ts, self))
-      elif np.imag(z)>0:
-        wn, csi = np.abs(z), np.abs(np.real(z))/np.abs(z)
-        self.PolesAndZerosList.append(
-              PoleOrZeroClass('zero','complex', self.Ts, self, omega=wn, csi=csi))
-      elif np.imag(z)==0: self.PolesAndZerosList.append(
-          PoleOrZeroClass('zero','real', self.Ts, self, omega=-z))
-    for p in omegaP:
-      if np.abs(p-pzIntDiff)<1e-6:  self.PolesAndZerosList.append(
-          PoleOrZeroClass('pole','integrator', self.Ts, self))
-      elif np.imag(p)>0: 
-        wn, csi = np.abs(p), np.abs(np.real(p))/np.abs(p)
-        self.PolesAndZerosList.append(
-          PoleOrZeroClass('pole','complex', self.Ts, self, omega=wn, csi=csi))
-      elif np.imag(z)==0: self.PolesAndZerosList.append(
-          PoleOrZeroClass('pole','real', self.Ts, self,omega=np.abs(p)))
-
-  def insertPoleZero(self,b):
-    if self.NewPZDropdown.value != ' ':
-      PZtype_dict = {'integrator': ['pole','integrator'],
-          'differentiator': ['zero','differentiator'],
-          'real pole': ['pole','real'], 'real zero': ['zero','real'],
-          'complex pole': ['pole','complex'],'complex zero': ['zero','complex']}
-      PZtype, PZsubtype = PZtype_dict[self.NewPZDropdown.value]
-      if PZtype == 'pole':
-        if PZsubtype == 'complex': self.relatOrderC += 2
-        else:                      self.relatOrderC += 1
-      else:
-        if PZsubtype == 'complex': self.relatOrderC -= 2
-        else:                      self.relatOrderC -= 1
-      self.PolesAndZerosList.append(PoleOrZeroClass(PZtype,PZsubtype,self.Ts,self))
-      self.NewPZDropdown.value = ' '
-      x = len(self.PolesAndZerosList)-1
-      self.PolesAndZerosList[x].FrequencySetButton.on_click(self.updateTFAndBokeh)
-    self.updateTFAndScreen(0)
-
-  def printController(self,b):
-    numstr, denstr = '', ''
-    Kstr = f'{db2mag(self.CgainInDBInteract.value):.4f}'
-    for pz in self.PolesAndZerosList:
-      numstr = numstr + pz.printNumOrDen('num')
-      denstr = denstr + pz.printNumOrDen('den')
-    if len(numstr)<1: numstr = '1'
-    if len(denstr)<1: denstr = '1'
-    return str(numstr), str(denstr), Kstr
+  #def printController(self,b):
+  #  from control import db2mag
+  #  numstr, denstr = '', ''
+  #  Kstr = f'{db2mag(self.CgainInDBInteract.value):.4f}'
+  #  for pz in self.PolesAndZeros:
+  #    numstr = numstr + pz.printNumOrDen('num')
+  #    denstr = denstr + pz.printNumOrDen('den')
+  #  if len(numstr)<1: numstr = '1'
+  #  if len(denstr)<1: denstr = '1'
+  #  return str(numstr), str(denstr), Kstr
     
   def buildBokehFigs(self):
+    from bokeh.models import ColumnDataSource,Span,Band,Label
+    from bokeh.plotting import figure as BkFig
     #BOKEH FIGURES:
     #Vector data:
     self.bodesource = ColumnDataSource( data={'omega':[], 'freqHz': [],
@@ -308,12 +868,13 @@ class SISOApp:
     self.cprlocussource = ColumnDataSource(data={'x':[],'y':[],'K':[]})
     self.czrlocussource = ColumnDataSource(data={'x':[],'y':[],'K':[]})
     self.krlocussource = ColumnDataSource(data={'x':[],'y':[],'K':[]})
-    self.stepsource = ColumnDataSource(
-                data={'t_s':[],'stepRYmf':[],'stepUYma':[],'stepRUmf':[]})
-  
+    self.stepsource = ColumnDataSource(data={'t_s':[],'stepRYmf':[],'stepUYma':[],'stepRUmf':[]})
+    #self.tRespsource = ColumnDataSource(data={'t_s':[],'r':[],'du':[],'dy':[],'dm':[],'u':[],'y':[]})
+    self.tRespsource = ColumnDataSource(data=self.CtrAnWgt.waveVec_dict)
+
     #Shadows:
-    MAX_OVERSHOT = 0.01*self.OShotIn.value + 1
-    MAX_RISE_TIME, MAX_SETTLING_TIME = self.RTimeIn.value, self.STimeIn.value
+    MAX_OVERSHOT = 0.01*self.CtrAnWgt.OShotIn.value + 1
+    MAX_RISE_TIME, MAX_SETTLING_TIME = self.CtrAnWgt.RTimeIn.value, self.CtrAnWgt.STimeIn.value
     _thetaZ = np.linspace(0,np.pi,100)
     _costh, _sinthN, _sinth = np.cos(_thetaZ), -np.sin(_thetaZ), np.sin(_thetaZ)
     self.shadowsource = ColumnDataSource(
@@ -363,29 +924,31 @@ class SISOApp:
                 toolbar_location="above", tooltips = _TTS_RLOC,
                 x_axis_label='real', y_axis_label='imag')
     #self.figRLoc.hover.line_policy = 'interp'
-    self.figTResp = BkFig(title="Time Response", plot_height=300, plot_width=400,
+    self.figTResp = BkFig(title="Step Response", plot_height=300, plot_width=400,
                 toolbar_location="above", tooltips = _TTS_TRESP,
                 x_axis_label='time (s)', y_axis_label='y') 
-    self.figTResp2= BkFig(title="Time Response", plot_height=300, plot_width=800, 
+    self.figTResp2= BkFig(title="Disturbance Simulation", plot_height=300, plot_width=800, 
                 toolbar_location="above", tooltips = _TTS_TRESP,
-                x_axis_label='time (s)', y_axis_label='y')
+                x_axis_label='time (s)', y_axis_label='y, r, dy, dm')
  
     self.Bkgrid = bokeh.layouts.layout([[self.figMag, self.figRLoc],
-                                        [self.figAng, self.figTResp]])
+                                        [self.figAng, self.figTResp],
+                                        self.figTResp2])
 
 
-    if self.Ts in [None, 0.0]:   #continuous time
+    if self.dt in [None, 0.0]:   #continuous time
       self.figRLoc.add_layout(self.shadows['rloc_s'])
     else:                 #discrete time
         for strkey in ['rloc_z1', 'rloc_z2', 'rloc_z3', 'rloc_z4']:
           self.figRLoc.add_layout(self.shadows[strkey])
-        self.Nyquistlimits = Span(location=0.5/self.Ts,
+        self.Nyquistlimits = Span(location=0.5/self.dt,
                                  dimension='height', line_color='black',
                                  line_dash='dotted', line_width=1)
         self.figMag.add_layout(self.Nyquistlimits)
         self.figAng.add_layout(self.Nyquistlimits)
     for strkey in ['ovsht', 'riset', 'sett1', 'sett2']:
       self.figTResp.add_layout(self.shadows[strkey])
+      #self.figTResp2.add_layout(self.shadows[strkey])
 
 
     #Bode Diagram:
@@ -398,21 +961,21 @@ class SISOApp:
                 alpha=0.8, name='∡T(s)', source=self.bodesource)
     bodeangG=self.figAng.line(x='freqHz', y='angG',color="green", line_width=1.5,
                 alpha=0.8,name='∡Gp(s)',line_dash='dashed',source=self.bodesource)
-    bodeGpmag = self.figMag.x( x='fHz',y='magdB',line_color='blue', size=8,
+    bodeGpmag = self.figMag.x( x='fHz',y='magdB',line_color='blue', size=10,
                  name='Gp poles', source = self.gpbodesource)
-    bodeGpang=self.figAng.x(x='fHz',y='angdeg',line_color='blue', size=8,
+    bodeGpang=self.figAng.x(x='fHz',y='angdeg',line_color='blue', size=10,
                  name='Gp poles angle', source = self.gpbodesource)
-    bodeGzmag = self.figMag.circle(x='fHz',y='magdB',line_color='blue',size=6,
+    bodeGzmag = self.figMag.circle(x='fHz',y='magdB',line_color='blue',size=8,
                  name='Gp zeros',fill_color=None, source = self.gzbodesource)
-    bodeGzang=self.figAng.circle(x='fHz',y='angdeg',line_color='blue',size=6,
+    bodeGzang=self.figAng.circle(x='fHz',y='angdeg',line_color='blue',size=8,
               name='Gp zeros angle', fill_color=None,source = self.gzbodesource)
-    bodeCpmag = self.figMag.x(x='fHz',y='magdB',line_color='red',size=8,
+    bodeCpmag = self.figMag.x(x='fHz',y='magdB',line_color='red',size=10,
                  name='C poles', source = self.cpbodesource)
-    bodeCpang=self.figAng.x(x='fHz',y='angdeg',line_color='red',size=8,
+    bodeCpang=self.figAng.x(x='fHz',y='angdeg',line_color='red',size=10,
                  name='C poles angle', source = self.cpbodesource)
-    bodeCzmag = self.figMag.circle(x='fHz',y='magdB',line_color='red',size=6,
+    bodeCzmag = self.figMag.circle(x='fHz',y='magdB',line_color='red',size=8,
                  name='C zeros', fill_color=None, source = self.czbodesource)
-    bodeCzang=self.figAng.circle(x='fHz',y='angdeg',line_color='red',size=6,
+    bodeCzang=self.figAng.circle(x='fHz',y='angdeg',line_color='red',size=8,
                 name='C zeros angle',fill_color=None, source = self.czbodesource)
     self.GMSpan = Span(location=1, dimension='height',
                        line_color='black', line_dash='dotted', line_width=1)
@@ -424,38 +987,38 @@ class SISOApp:
     self.GMtxt = Label(x=5, y=20, x_units='screen', y_units='screen', 
                          text=' ',  render_mode='css',border_line_color=None,
                         background_fill_color='white',text_font_size = '11px')
-    self.Clbltxt = Label(x=5, y=20, x_units='screen', y_units='screen', 
-                         text=' ',  render_mode='css',border_line_color=None,
-                        background_fill_color='white',text_font_size = '11px')
-    self.Clbltxt.text = 'C(s) = ' if self.Ts in [None, 0.0] else 'C(z) = '
-    self.Cgaintxt = Label(x=40, y=20, x_units='screen', y_units='screen', 
-                         text='K',  render_mode='css',border_line_color=None,
-                        background_fill_color='white',text_font_size = '11px')
-    self.Cnumtxt = Label(x=100, y=30, x_units='screen', y_units='screen', 
-                         text='N',  render_mode='css',border_line_color=None,
-                        background_fill_color='white',text_font_size = '11px')
-    self.Cdentxt = Label(x=100, y=10, x_units='screen', y_units='screen', 
-                         text='D',  render_mode='css',border_line_color=None,
-                        background_fill_color='white',text_font_size = '11px')
+    #self.Clbltxt = Label(x=5, y=20, x_units='screen', y_units='screen', 
+    #                     text=' ',  render_mode='css',border_line_color=None,
+    #                    background_fill_color='white',text_font_size = '11px')
+    #self.Clbltxt.text = 'C(s) = ' if self.dt in [None, 0.0] else 'C(z) = '
+    #self.Cgaintxt = Label(x=40, y=20, x_units='screen', y_units='screen', 
+    #                     text='K',  render_mode='css',border_line_color=None,
+    #                    background_fill_color='white',text_font_size = '11px')
+    #self.Cnumtxt = Label(x=100, y=30, x_units='screen', y_units='screen', 
+    #                     text='N',  render_mode='css',border_line_color=None,
+    #                    background_fill_color='white',text_font_size = '11px')
+    #self.Cdentxt = Label(x=100, y=10, x_units='screen', y_units='screen', 
+    #                     text='D',  render_mode='css',border_line_color=None,
+    #                    background_fill_color='white',text_font_size = '11px')
     self.figMag.add_layout(self.GMSpan), self.figAng.add_layout(self.GMSpan)
     self.figMag.add_layout(self.PMSpan), self.figAng.add_layout(self.PMSpan)
     self.figAng.add_layout(self.PMtxt), self.figAng.add_layout(self.GMtxt)
-    self.figMag.add_layout(self.Clbltxt), self.figMag.add_layout(self.Cgaintxt)
-    self.figMag.add_layout(self.Cnumtxt), self.figMag.add_layout(self.Cdentxt)
+    #self.figMag.add_layout(self.Clbltxt), self.figMag.add_layout(self.Cgaintxt)
+    #self.figMag.add_layout(self.Cnumtxt), self.figMag.add_layout(self.Cdentxt)
 
     #Root Locus:
     rlocusline = self.figRLoc.dot(x='x',y='y',color='blue',
                                   name='rlocus', source = self.rlocussource)
-    rlocusGpoles = self.figRLoc.x(x='x',y='y',color='blue', size=8,
+    rlocusGpoles = self.figRLoc.x(x='x',y='y',color='blue', size=10,
                                 name='Gp pole', source = self.gprlocussource)
-    rlocusGzeros = self.figRLoc.circle(x='x',y='y',line_color='blue',size=6,
+    rlocusGzeros = self.figRLoc.circle(x='x',y='y',line_color='blue',size=8,
                  name='Gp zero', fill_color=None, source = self.gzrlocussource)
-    rlocusCpoles = self.figRLoc.x(x='x',y='y',color='red', size=8,
+    rlocusCpoles = self.figRLoc.x(x='x',y='y',color='red', size=10,
                                 name='C pole', source = self.cprlocussource)
-    rlocusCzeros = self.figRLoc.circle(x='x',y='y',line_color='red',size=6,
+    rlocusCzeros = self.figRLoc.circle(x='x',y='y',line_color='red',size=8,
                  name='C zero', fill_color=None, source = self.czrlocussource)
-    rlocusMF = self.figRLoc.square(x='x',y='y', line_color='red',size=6,
-                 name='K', fill_color='red', source = self.krlocussource) 
+    rlocusMF = self.figRLoc.square(x='x',y='y', line_color='deeppink',size=8,
+                 name='K', fill_color='deeppink', source = self.krlocussource)
     rlocuslinehv = self.figRLoc.line(x='x',y='y',line_alpha=0, 
                                   name='rlocus2', source = self.rlocussource)
     self.figRLoc.hover.renderers=[rlocuslinehv, rlocusGpoles, rlocusGzeros,
@@ -473,64 +1036,62 @@ class SISOApp:
     self.figTResp.add_layout(bokeh.models.LinearAxis(y_range_name="u_range",
                                                      axis_label='u'), 'right')
     self.figTResp.y_range = bokeh.models.Range1d(start = -0.1, end = 1.4)
-    if self.Ts in [None, 0.0]:
-      stepR2Y=self.figTResp.line(x='t_s', y='stepRYmf',color="blue",
-                                 line_width=1.5, name='y',
+    #add_graf = self.figTResp.line if self.dt in [None, 0.0] else self.figTResp.dot
+    if self.dt in [None, 0.0]:
+        stepR2Y=self.figTResp.line(x='t_s', y='stepRYmf',color="blue",line_width=1.5, name='y',
                         legend_label='y (closed loop)',  source=self.stepsource)
-      stepU2Y=self.figTResp.line(x='t_s', y='stepUYma',color="green",
+        stepU2Y=self.figTResp.line(x='t_s', y='stepUYma',color="green",
                legend_label='y (open loop)', line_dash='dashed', line_width=1.0,
-                                name='y (ol)',source=self.stepsource)
-      stepR2U=self.figTResp.line(x='t_s', y='stepRUmf',color="red",
+                                name='y (ol)',source=self.stepsource, visible=False)
+        stepR2U=self.figTResp.line(x='t_s', y='stepRUmf',color="red",
                        line_width=1.0, name='u',legend_label='u (closed loop)',
-            line_dash='dashed', source=self.stepsource, y_range_name = 'u_range')
+            line_dash='dashed', source=self.stepsource, y_range_name = 'u_range', visible=False)
     else:
-      stepR2Y=self.figTResp.dot(x='t_s', y='stepRYmf',color="blue",
+        stepR2Y=self.figTResp.dot(x='t_s', y='stepRYmf',color="blue",
                                  line_width=1.5, name='y',  size=15,
                         legend_label='y (closed loop)',  source=self.stepsource)
-      stepU2Y=self.figTResp.dot(x='t_s', y='stepUYma',color="green", size=15,
+        stepU2Y=self.figTResp.dot(x='t_s', y='stepUYma',color="green", size=15,
                                 legend_label='y (open loop)', line_width=1.0,
-                                name='y (ol)',source=self.stepsource)
-      stepR2U=self.figTResp.dot(x='t_s', y='stepRUmf',color="red", size=15,
+                                name='y (ol)',source=self.stepsource, visible=False)
+        stepR2U=self.figTResp.dot(x='t_s', y='stepRUmf',color="red", size=15,
                        line_width=1.0, name='u',legend_label='u (closed loop)',
-                       source=self.stepsource, y_range_name = 'u_range')
+                       source=self.stepsource, y_range_name = 'u_range', visible=False)
     self.figTResp.legend.location = 'bottom_right'
     self.figTResp.legend.click_policy = 'hide'
 
-    #self.createBode()
-
-  def updateScreen(self):
-    #clear_output()  #not working
-    npz = [' ','real pole','integrator','complex pole']
-    if (self.relatOrderC >= 1): npz.extend(['real zero','differentiator'])
-    if (self.relatOrderC >= 2): npz.append('complex zero')
-    self.NewPZDropdown.options = npz
-    self.createRLocus()
-    self.createBode()
-    self.updateStepResponse()
-    self.Appwidget.center = VBox([pzs.Widget for pzs in self.PolesAndZerosList])
-    asdfs = display(self.Appwidget)
-    bokeh.io.output_notebook()
-    self.Bknb_handle = bokeh.io.show(self.Bkgrid, notebook_handle=True)
-    self.updateBokeh()
-
-  def updateGainAndBokeh(self,b):
-    #Update gain:  updates Gc(s),  T(s), and Kgain
-    Kgain_new = db2mag(self.CgainInDBInteract.value)
-    dKgain = Kgain_new/self.Kgain
-    self.CTransfFunc = self.CTransfFunc*dKgain
-    self.OLTF = self.OLTF*dKgain
-    self.Kgain, self.dKgaindB = Kgain_new,  np.round(mag2db(dKgain),decimals=1)
-    #Update Bokeh:
-    self.updateBokeh()
-
-  def updateAndPrintC(self,b):
-    self.updateTFAndBokeh(0)
-    N,D,K = self.printController(0)
-    print(f'Controller:  num = {self.numC}')
-    print(f'             den  = {self.denC}')
-    print(f'ZPK:  zeros = {self.CZeros}')
-    print(f'      poles = {self.CPoles}')
-    print(f'      gain = {self.Kgain}')
+    #Disturbances response:
+    self.figTResp2.extra_y_ranges = {'u_range': bokeh.models.Range1d()}
+    self.figTResp2.add_layout(bokeh.models.LinearAxis(y_range_name="u_range",
+                                                     axis_label='u, du'), 'right')
+    self.figTResp2.y_range = bokeh.models.Range1d(start = -0.1, end = 1.4)
+    if self.dt in [None, 0.0]:
+        tRespY=self.figTResp2.line(x='t_s', y='y',color="blue", line_width=1.5, name='y',
+                        legend_label='y',  source=self.tRespsource)
+        tRespU=self.figTResp2.line(x='t_s', y='u',color="red", legend_label='u', line_width=1.5,
+                      name='u',source=self.tRespsource, y_range_name = 'u_range', visible=False)
+        tRespDU=self.figTResp2.line(x='t_s', y='du',color="indianred", line_width=1.0, name='du',legend_label='du',
+                                    line_dash='dashed', source=self.tRespsource, y_range_name = 'u_range', visible=False)
+        tRespR=self.figTResp2.line(x='t_s', y='r',color="green", line_width=1.0, name='r',legend_label='r',
+                                  line_dash='dashed', source=self.tRespsource)
+        tRespDY=self.figTResp2.line(x='t_s', y='dy',color="deepskyblue", line_width=1.0, name='dy',legend_label='dy',
+                                    line_dash='dashed', source=self.tRespsource, visible=False)
+        tRespDM=self.figTResp2.line(x='t_s', y='dm',color="lime", line_width=1.0, name='dm',legend_label='dm',
+                                    line_dash='dashed', source=self.tRespsource, visible=False)
+    else:
+        tRespY=self.figTResp2.dot(x='t_s', y='y',color="blue", line_width=1.5, size=15, name='y',
+                        legend_label='y',  source=self.tRespsource)
+        tRespU=self.figTResp2.dot(x='t_s', y='u',color="red", legend_label='u', line_width=1.5, size=15,
+                      name='u',source=self.tRespsource, y_range_name = 'u_range', visible=False)
+        tRespDU=self.figTResp2.dot(x='t_s', y='du',color="indianred", line_width=1.0, name='du',legend_label='du',
+                              size=15, line_dash='dashed', source=self.tRespsource, y_range_name = 'u_range', visible=False)
+        tRespR=self.figTResp2.dot(x='t_s', y='r',color="green", line_width=1.0, name='r',legend_label='r',size=15,
+                                  line_dash='dashed', source=self.tRespsource)
+        tRespDY=self.figTResp2.dot(x='t_s', y='dy',color="deepskyblue", line_width=1.0, name='dy',legend_label='dy',
+                                size=15,line_dash='dashed', source=self.tRespsource, visible=False)
+        tRespDM=self.figTResp2.dot(x='t_s', y='dm',color="lime", line_width=1.0, name='dm',legend_label='dm',
+                               size=15, line_dash='dashed', source=self.tRespsource, visible=False)
+    self.figTResp2.legend.location = 'bottom_right'
+    self.figTResp2.legend.click_policy = 'hide'
 
   def updateTFAndBokeh(self,b):
     self.updateTransferFunction()
@@ -538,66 +1099,65 @@ class SISOApp:
     self.createRLocus()
     self.updateBokeh()
 
-  def updateTFAndScreen(self,b):
-    self.updateTransferFunction()
-    #print(self.CTransfFunc)
-    self.updateScreen()
+  def updateGcgainAndBokeh(self,b):
+    from control.matlab import minreal, append, tf, connect
+    self.OLTF = self.OLTF*self.Gc.dKdcgain
+    sys = append(self.Gc, self.Gp, tf(1,1,self.dt), self.Gf)
+    # r-->[Gc: 1]--u-->[Gp: 2]--->[dy_sum: 3]--y-->[Gf: 4]
+    self.sysMF = connect(sys, Q = [[2, 1], [3, 2], [4, 3], [1,-4]], # Q: [inputNbr, outputNbr]
+                         inputv = [1, 2, 3, 4], outputv = [3, 1]) #Inputs: r, du, dy, dm. Ouputs: y, u
+    self.updateBokeh()
 
   def updateBokeh(self):
     self.updateBodeData()
     self.updateRLocusData()
     self.updateStepResponse()
-    self.updateCLabels()
-    bokeh.io.push_notebook(handle = self.Bknb_handle)
+    self.updateDistResponse({'new':'success'})
+    bokeh.io.push_notebook(handle = self.Bknb_handle);
   
   def updateTransferFunction(self):
-    self.Kgain = db2mag(self.CgainInDBInteract.value)
-    self.numC, self.denC = np.array([0,self.Kgain]) ,  np.array([0,1])
-    for pz in self.PolesAndZerosList:
-      pz.setFrequency(0)
-      self.numC = np.polymul(self.numC, pz.num)
-      self.denC = np.polymul(self.denC, pz.den)
-    self.CTransfFunc = tf(self.numC, self.denC, self.Ts)
-    self.CPoles = self.CTransfFunc.pole()
-    self.CZeros = self.CTransfFunc.zero()
-    self.OLTF = minreal(self.GpTransfFunc*self.CTransfFunc,tol=1e-6,verbose=False)
+    from control.matlab import minreal, append, tf, connect
+    self.OLTF = minreal(self.Gp*self.Gc*self.Gf,tol=1e-6,verbose=False)
+
+    sys = append(self.Gc, self.Gp, tf(1,1,self.dt), self.Gf)
+    # r-->[Gc: 1]--u-->[Gp: 2]--->[dy_sum: 3]--y-->[Gf: 4]
+    self.sysMF = connect(sys, Q = [[2, 1], [3, 2], [4, 3], [1,-4]], # Q: [inputNbr, outputNbr]
+                         inputv = [1, 2, 3, 4], outputv = [3, 1]) #Inputs: r, du, dy, dm. Ouputs: y, u
+
+  def _clamp_fNyquist(self,SPoles_SZeros):
+    return np.clip(np.abs(SPoles_SZeros), 0, 2*np.pi*self.fNyquistHz)
 
   def createBode(self):
     '''Creates the plots for Bode Diagram '''
+    from control.matlab import bode, mag2db
+    R2D,  W2F = 180/np.pi,  1/(2*np.pi)
     magT,phiT,omega = bode(self.OLTF,omega_num=1000, plot=False)
-    magG,phiG,_ = bode(self.GpTransfFunc,omega, plot=False)
+    magG,phiG,_ = bode(self.Gp,omega, plot=False)
     magdbG, magdbT = mag2db(magG), mag2db(magT)
-    phiGHz, phiTHz = phiG*180/pi, phiT*180/pi
     self.bodesource.data={'omega':omega, 'freqHz':(omega/(2*np.pi)),
-                         'magdBG':magdbG, 'magG':magG, 'angG':phiGHz,
-                         'magdBT':magdbT, 'magT':magT, 'angT':phiTHz}
+                         'magdBG':magdbG, 'magG':magG, 'angG':phiG*R2D,
+                         'magdBT':magdbT, 'magT':magT, 'angT':phiT*R2D}
     self.updatePMGM()
-    def d2c_clampAtNyquistFreq(PZdiscr):
-          PZdiscr1 = list(filter(lambda x: np.real(x)>=0, PZdiscr))
-          omegaVec = np.abs(np.log(PZdiscr1))/self.Ts
-          omega_nyqu = 2*np.pi*self.fNyquistHz
-          for q in range(len(omegaVec)):
-            if omegaVec[q]>omega_nyqu: omegaVec[q] = omega_nyqu
-          return omegaVec
-    func1 = np.abs if self.Ts in [None, 0.0] else d2c_clampAtNyquistFreq
-    dict1 = {'Gpp': [self.GpPoles,self.gpbodesource],
-             'Gpz': [self.GpZeros,self.gzbodesource],
-             'CP' : [self.CPoles,self.cpbodesource],
-             'CZ' : [self.CZeros,self.czbodesource]}
-    for key1 in ['Gpp','Gpz','CP','CZ']:
-      pORz = list(filter(lambda x: x>1e-5, func1(dict1[key1][0])))
+    #func1 = np.abs if self.dt in [None, 0.0] else self.d2c_clampAtNyquistFreq
+    dict1 = {'GpP': [self.Gp.SPoles,self.gpbodesource],
+             'GpZ': [self.Gp.SZeros,self.gzbodesource],
+             'GcP': [self.Gc.SPoles,self.cpbodesource],
+             'GcZ': [self.Gc.SZeros,self.czbodesource]}
+    for key1 in ['GpP','GpZ','GcP','GcZ']:
+      pORz = list(filter(lambda x: x>1e-5, self._clamp_fNyquist(dict1[key1][0])))
       magdB, phideg, fHz = [], [], []
       if pORz:
         mag,phi,omega = bode(self.OLTF, pORz, plot=False)
-        magdB, phideg, fHz = mag2db(mag), phi*180/pi, (omega/(2*pi))
+        magdB, phideg, fHz = mag2db(mag), phi*R2D, (omega*W2F)
         for q in range(len(phideg)):
           if phideg[q] > 90: phideg[q] = phideg[q]-360;
       dict1[key1][1].data={'fHz':list(fHz),'magdB':list(magdB),'angdeg':list(phideg)}
 
   def updateBodeData(self):
+    from control.matlab import mag2db
     def sum_constant_to_list(data_dict, list_key, constant):
           data_dict[list_key] = list(np.array(data_dict[list_key])+constant)
-    dmagdB, dmag = self.dKgaindB, db2mag(self.dKgaindB)
+    dmagdB, dmag = mag2db(self.Gc.dKdcgain), self.Gc.dKdcgain
     for pz in [self.gpbodesource,self.gzbodesource,self.cpbodesource,self.czbodesource]:
         sum_constant_to_list(pz.data,'magdB', dmagdB)
     sum_constant_to_list(self.bodesource.data,'magdBT', dmagdB )
@@ -605,81 +1165,92 @@ class SISOApp:
     self.updatePMGM()
 
   def updatePMGM(self):
+    from control.matlab import margin
+    R2D,  W2F, F2W = 180/np.pi,  1/(2*np.pi),  2*np.pi
     self.GainMargin,self.PhaseMargin,wg,wc = margin(self.OLTF)
-    if np.isnan(wg): wg = 2*np.pi*self.fNyquistHz
-    if np.isnan(wc): wc = 2*np.pi*self.fNyquistHz
-    self.PMSpan.location = wc/(2*np.pi)
-    self.GMSpan.location = wg/(2*np.pi)
+    if np.isnan(wg): wg = self.fNyquistHz*F2W
+    if np.isnan(wc): wc = self.fNyquistHz*F2W
+    self.PMSpan.location = wc*W2F
+    self.GMSpan.location = wg*W2F
     if str(self.GainMargin) == 'inf':  self.GMtxt.text = 'GM: inf'
     else: self.GMtxt.text = f'GM:{self.GainMargin:.1f} dB'
     if str(self.PhaseMargin) == 'inf': self.PMtxt.text = 'PM: inf'
     else: self.PMtxt.text = f'PM: {self.PhaseMargin:.1f}°'
 
   def createRLocus(self):
-    CgaindB = self.CgainInDBInteract.value
-    Cgain = db2mag(CgaindB)
-    self.kvectLen= int((self.maxCGainIndB-self.minCGainIndB)/self.CGainStepIndB+1)
-    kvectdB = np.linspace(self.minCGainIndB, self.maxCGainIndB, self.kvectLen)
-    self.kvect = db2mag(kvectdB)
-    Kgp, Kgz = np.zeros(len(self.GpPoles)), np.Inf*np.ones(len(self.GpZeros))
-    Kcp, Kcz = np.zeros(len(self.CPoles)), np.Inf*np.ones(len(self.CZeros))
-    self.rootsVect,_ = rlocus(self.OLTF/Cgain,plot=False,kvect=self.kvect)
-    re, im, rootsVect = np.real, np.imag, self.rootsVect
-    Krlocus,  cols = self.kvect,  self.rootsVect.shape[1]-1
-    for x in range(cols):  Krlocus = np.column_stack((Krlocus,self.kvect))
-    self.rlocussource.data = {'x':re(rootsVect),'y':im(rootsVect),'K':Krlocus}
-    self.gprlocussource.data = {'x':re(self.GpPoles),'y':im(self.GpPoles),'K':Kgp}
-    self.gzrlocussource.data = {'x':re(self.GpZeros),'y':im(self.GpZeros),'K':Kgz}
-    self.cprlocussource.data = {'x':re(self.CPoles),'y':im(self.CPoles),'K':Kcp}
-    self.czrlocussource.data = {'x':re(self.CZeros),'y':im(self.CZeros),'K':Kcz}
+    from numpy import real, imag
+    from control import root_locus
+    GcdB, Gcmag = self.Gc.CgainInDBInteract.value, self.Gc.Kdcgain
+    Kgp, Kgz = np.zeros(len(self.Gp.Poles)), np.Inf*np.ones(len(self.Gp.Zeros))
+    Kcp, Kcz = np.zeros(len(self.Gc.Poles)), np.Inf*np.ones(len(self.Gc.Zeros))
+    self.rootsVec,_ = root_locus(self.OLTF/self.Gc.Kdcgain , plot=False, kvect = self.Gc.kvect )
+    Krlocus,  cols = self.Gc.kvect,  self.rootsVec.shape[1]-1
+    for x in range(cols):  Krlocus = np.column_stack((Krlocus,self.Gc.kvect))
+    self.rlocussource.data = {'x': (real(self.rootsVec)).flatten(),
+                              'y': (imag(self.rootsVec)).flatten(),
+                              'K': Krlocus.flatten()}
+    
+    self.gprlocussource.data = {'x':real(self.Gp.Poles),'y':imag(self.Gp.Poles),'K':Kgp}
+    self.gzrlocussource.data = {'x':real(self.Gp.Zeros),'y':imag(self.Gp.Zeros),'K':Kgz}
+    self.cprlocussource.data = {'x':real(self.Gc.Poles),'y':imag(self.Gc.Poles),'K':Kcp}
+    self.czrlocussource.data = {'x':real(self.Gc.Zeros),'y':imag(self.Gc.Zeros),'K':Kcz}
+    #print(self.czrlocussource.data)
     self.updateRLocusData()
 
-    if rootsVect.size>0: 
-      xrangemin, xrangemax = np.min(re(rootsVect)), np.max(re(rootsVect))
+    if self.rootsVec.size>0: 
+      xrangemin, xrangemax = np.min(real(self.rootsVec)), np.max(real(self.rootsVec))
       if np.abs(xrangemax-xrangemin)<2:
         self.figRLoc.x_range.update(start=xrangemin-1, end=xrangemax+1)
-      yrangemin, yrangemax = np.min(im(rootsVect)), np.max(im(rootsVect))
+      yrangemin, yrangemax = np.min(imag(self.rootsVec)), np.max(imag(self.rootsVec))
       if np.abs(yrangemax-yrangemin)<2:
         self.figRLoc.y_range.update(start=yrangemin-1, end=yrangemax+1) 
     
 
   def updateRLocusData(self):
-    Cgain_real = db2mag(self.CgainInDBInteract.value)
-    Kindex = int(self.kvectLen*(self.CgainInDBInteract.value-self.minCGainIndB)
-                                       /(self.maxCGainIndB-self.minCGainIndB))-1
-    x,y = np.real(self.rootsVect[Kindex]), np.imag(self.rootsVect[Kindex])
-    K = self.kvect[Kindex]*np.ones(len(list(x)))
+    Kindex = int(len(self.Gc.kvect)*(self.Gc.CgainInDBInteract.value-self.Gc.kvectdB[0])
+                                       /(self.Gc.kvectdB[-1]-self.Gc.kvectdB[0]))-1
+    x,y = np.real(self.rootsVec[Kindex]), np.imag(self.rootsVec[Kindex])
+    K = self.Gc.kvect[Kindex]*np.ones(len(list(x)))
     self.krlocussource.data = {'x': x , 'y': y, 'K':K} 
-    comp = (x>0) if self.Ts in [None, 0.0] else  ((x*x+y*y)>1)
-    if any(comp): self.Stabilitytxt.text = 'Unstable Loop'
-    else:         self.Stabilitytxt.text = 'Stable Loop'
+    unstable = (x>0) if self.dt in [None, 0.0] else  ((x*x+y*y)>1)
+    if any(unstable): self.Stabilitytxt.text = 'Unstable Loop'
+    else:             self.Stabilitytxt.text = 'Stable Loop'
 
   def updateStepResponse(self):
-    Gmf = minreal(feedback(self.OLTF, 1), tol=1e-6, verbose=False)
-    Gru = feedback(self.CTransfFunc, self.GpTransfFunc)
-    p_dom = np.abs(np.real(Gmf.pole()))
-    wp_dom = p_dom if self.Ts in [None, 0.0] else -np.log(p_dom)/self.Ts
+    from control.matlab import minreal, step, feedback
+    Gmf_y_u = self.sysMF[:,0]
+    p_dom = np.abs(np.real(Gmf_y_u[0,0].pole()))
+    wp_dom = p_dom if self.dt in [None, 0.0] else -np.log(p_dom)/self.dt
     tau5_Gmf = np.abs(5/np.min(wp_dom)) #5 constantes de tempo
-    if self.Ts in [None, 0.0]:
-      tvec = linspace(0,tau5_Gmf, 200)
-    else:
-      nmax = np.round(tau5_Gmf/self.Ts)
-      tvec = linspace(0,nmax*self.Ts, int(nmax+1))
-    ymf,tvec = step(Gmf, T=tvec)
-    yma,_ = step(self.GpTransfFunc, T=tvec)
-    umf,_ = step(Gru, T=tvec)
-    self.stepsource.data={'t_s':tvec,'stepRYmf':ymf,'stepUYma':yma,'stepRUmf':umf }
+    tvec = np.linspace(0,tau5_Gmf, 200) if self.dt in [None, 0.0] else np.arange(0,tau5_Gmf, self.dt)
+    yu,tvec = step(Gmf_y_u, T=tvec)
+    ymf, umf = yu[:,0], yu[:,1]
+    yma,_ = step(self.Gp, T=tvec)
+    self.stepsource.data={'t_s':tvec,'stepRYmf':yu[:,0],'stepUYma':yma,'stepRUmf':umf }
     self.figTResp.extra_y_ranges['u_range'].update(start=0.9*np.min(umf),
                                                    end=1.2*np.max(umf))
 
   def updateRequirements(self,b):
-    max_overshot = 0.01*self.OShotIn.value+1
+    max_overshot = 0.01*self.CtrAnWgt.OShotIn.value+1
     self.shadowsource.data['overshot'] = [max_overshot, max_overshot]
-    self.shadowsource.data['risetime'] = [self.RTimeIn.value, 1e4]
-    self.shadowsource.data['settlingtime'] = [self.STimeIn.value, 1e4]
+    self.shadowsource.data['risetime'] = [self.CtrAnWgt.RTimeIn.value, 1e4]
+    self.shadowsource.data['settlingtime'] = [self.CtrAnWgt.STimeIn.value, 1e4]
     bokeh.io.push_notebook(handle = self.Bknb_handle)
 
-  def updateCLabels(self):
-    N,D,K = self.printController(0)
-    self.Cnumtxt.text, self.Cdentxt.text, self.Cgaintxt.text = 'N','D','K'
-    self.Cnumtxt.text, self.Cdentxt.text, self.Cgaintxt.text = N,D,K
+
+  def updateDistResponse(self,button_style):
+    if button_style['new']=='success' and len(self.CtrAnWgt.waveVec_dict['t_s']>90):
+      from control.matlab import lsim
+      t,r,du,dy,dm = map(self.CtrAnWgt.waveVec_dict.get, ('t_s','r','du','dy','dm'))
+      y, u = np.zeros_like(t), np.zeros_like(t)
+      yu,_,_ = lsim(self.sysMF, U=np.column_stack((r,du,dy,dm)), T=t)
+      ymf, umf = yu[:,0], yu[:,1]
+      self.tRespsource.data = {'t_s':t,'r':r,'du':du,'dy':dy,'dm':dm,'y':ymf,'u':umf}
+      ymin, ymax, umin, umax = np.min(ymf), np.max(ymf), np.min(umf), np.max(umf)
+      self.figTResp2.y_range.update(start = ymin - 0.05*(ymax-ymin),
+                                    end = ymax + 0.05*(ymax-ymin))
+      self.figTResp2.extra_y_ranges['u_range'].update(start = umin - 0.05*(umax-umin),
+                                                      end = umax + 0.05*(umax-umin))
+      bokeh.io.push_notebook(handle = self.Bknb_handle)
+
+
