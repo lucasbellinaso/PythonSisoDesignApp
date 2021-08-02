@@ -32,10 +32,16 @@ help(SISOApp)
 ## Example - control design
 
 ``` python
-Gp = tf(1,[1,1,1])  # defining plant transfer function
-SISOApp(Gp)
+from control.matlab import tf
+Gp = tf(1,[1,1,1])
+Gc = tf([1,1],[1,0])
+App = SISOApp(Gp, Gc)    #Controller: App.Gc
 ```
 
 ## Figures
 
-![image](SISOApp_fig1.jpeg)
+![image](SISOApp1.png)
+
+![image](SISOApp2.png)
+
+![image](SISOApp3.png)
