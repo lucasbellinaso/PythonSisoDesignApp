@@ -32,6 +32,8 @@ help(SISOApp)
 ## Example - control design
 
 ``` python
+#Run this code again if the Figure is not working:
+
 from control.matlab import tf
 Gp = tf(1,[1,1,1])
 Gc = tf([1,1],[1,0])
