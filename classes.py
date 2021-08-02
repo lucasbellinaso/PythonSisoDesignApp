@@ -791,6 +791,7 @@ class SISOApp:
     from numpy import array
     from ipywidgets import Tab
     from IPython.display import display
+    from control import tf
 
     #IPython.display.clear_output()
     self.dt = Gp.dt
