@@ -6,6 +6,8 @@ Developer: Prof. Lucas Vizzotto Bellinaso
 <br>Universidade Federal de Santa Maria
 <br>15/10/2020
 
+Open in Google Colab:   https://colab.research.google.com/drive/1YD5irv7Qni2gyFu2nIAmPL15vL8b1Dwj
+
 ## Copy this code to the first cell in Google Colab:
 
 ``` python
