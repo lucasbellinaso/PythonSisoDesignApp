@@ -1179,13 +1179,13 @@ class SISOApp:
     else: self.PMtxt.text = f'PM: {self.PhaseMargin:.1f}°'
 
   def createRLocus(self):
-    from numpy import real, imag
+    from numpy import real, imag, array
     from control import root_locus
     GcdB, Gcmag = self.Gc.CgainInDBInteract.value, self.Gc.Kdcgain
     Kgp, Kgz = np.zeros(len(self.Gp.Poles)), np.Inf*np.ones(len(self.Gp.Zeros))
     Kcp, Kcz = np.zeros(len(self.Gc.Poles)), np.Inf*np.ones(len(self.Gc.Zeros))
     self.rootsVec,_ = root_locus(self.OLTF/self.Gc.Kdcgain , plot=False, kvect = self.Gc.kvect )
-    Krlocus,  cols = self.Gc.kvect,  self.rootsVec.shape[1]-1
+    Krlocus,  cols = array(self.Gc.kvect),  self.rootsVec.shape[1]-1
     for x in range(cols):  Krlocus = np.column_stack((Krlocus,self.Gc.kvect))
     self.rlocussource.data = {'x': (real(self.rootsVec)).flatten(),
                               'y': (imag(self.rootsVec)).flatten(),
