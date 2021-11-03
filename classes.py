@@ -1166,7 +1166,7 @@ class SISOApp:
     self.updatePMGM()
 
   def updatePMGM(self):
-    from control.matlab import margin
+    from control.matlab import margin, mag2db
     R2D,  W2F, F2W = 180/np.pi,  1/(2*np.pi),  2*np.pi
     self.GainMargin,self.PhaseMargin,wg,wc = margin(self.OLTF)
     if np.isnan(wg): wg = self.fNyquistHz*F2W
@@ -1174,7 +1174,7 @@ class SISOApp:
     self.PMSpan.location = wc*W2F
     self.GMSpan.location = wg*W2F
     if str(self.GainMargin) == 'inf':  self.GMtxt.text = 'GM: inf'
-    else: self.GMtxt.text = f'GM:{self.GainMargin:.1f} dB'
+    else: self.GMtxt.text = f'GM:{mag2db(self.GainMargin):.1f} dB'
     if str(self.PhaseMargin) == 'inf': self.PMtxt.text = 'PM: inf'
     else: self.PMtxt.text = f'PM: {self.PhaseMargin:.1f}°'
 
