@@ -5,6 +5,7 @@ User interface for designing Single-Input-Single-Output Controllers in Google Co
 Developer: Prof. Lucas Vizzotto Bellinaso
 <br>Universidade Federal de Santa Maria
 <br>15/10/2020
+<br> Last version: 23/10/2025
 
 Open in Google Colab:   https://colab.research.google.com/drive/1YD5irv7Qni2gyFu2nIAmPL15vL8b1Dwj
 
@@ -12,7 +13,6 @@ Open in Google Colab:   https://colab.research.google.com/drive/1YD5irv7Qni2gyFu
 
 ``` python
 # Copy and run in the first cell:
-!pip install bokeh             # Bokeh package must be installed in Google Colab server
 !pip install control           # Control package must be installed in Google Colab server
 !git clone https://github.com/lucasbellinaso/PythonSisoDesignApp.git
 import os
