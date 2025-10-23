@@ -823,12 +823,12 @@ class SISOApp:
     #IPython.display.clear_output()
     self.dt = Gp.dt
     self.ContinuousTime = True if (self.dt is None or self.dt == 0) else False
-    self.DiscreteTime = !self.ContinuousTime
+    self.DiscreteTime = not self.ContinuousTime
     self.Gp = ControllerSISOApp(Gp.num, Gp.den, self.dt, name = 'Gp', inputs = ['u'], outputs = ['yp'])
     self.OLTF = tf(1,1,self.dt)
     self.PhaseMargin, self.GainMargin = 0,0
     self.rootsVect = []
-    self.fNyquistHz = 1e6 if self.dt in [None, 0.0] else 0.5/self.dt;
+    self.fNyquistHz = 1e6 if self.ContinuousTime else 0.5/self.dt;
     if Gc == None:  self.Gc = ControllerSISOApp([1],[1], self.dt, name = 'Gc', inputs = ['e'], outputs = ['uc'], start_configWgt=True)
     else:
         conditions = [self.ContinuousTime, Gc.dt==Gp.dt]
@@ -847,7 +847,7 @@ class SISOApp:
     self.Sdy = summing_junction(inputs = ['yp','dy'], output = 'y', name = 'Sdy');
     self.Sdm = summing_junction(inputs = ['y', 'dm'], output = 'ym', name = 'Sdm');
     self.Gcgain = tf([self.Gc.Kdcgain],[1], self.dt, name = 'gain', inputs = ['uc1'], outputs = ['uc']);
-    if self.dt not in [None, 0.0]:
+    if self.DiscreteTime:
         self.Sr.dt, self.Sdu.dt, self.Sdy.dt, self.Sdm.dt = self.dt, self.dt, self.dt, self.dt
     self.Gp.name, self.Gp.input_labels, self.Gp.output_labels = 'Gp', ['u'], ['yp']
     self.Gc.name, self.Gc.input_labels, self.Gc.output_labels = 'Gc',  ['e'], ['uc1']
