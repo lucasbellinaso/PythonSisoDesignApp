@@ -1059,7 +1059,7 @@ class SISOApp:
     bokeh.io.push_notebook(handle = self.Bknb_handle);
 
   def updateTransferFunction(self):
-    from control import interconnect, minimal_realization
+    from control import interconnect, minimal_realization, tf
     self.Gcgain = tf([self.Gc.Kdcgain],[1], self.dt, name = 'gain', inputs = ['uc1'], outputs = ['uc']);
     self.OLTF = minimal_realization(self.Gc*self.Gcgain*self.Gp*self.Gf,tol=1e-6,verbose=False)
     self.Gc.name, self.Gc.input_labels, self.Gc.output_labels = 'Gc',  ['e'], ['uc1']
