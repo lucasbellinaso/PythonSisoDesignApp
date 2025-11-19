@@ -14,16 +14,10 @@ Open in Google Colab:   https://colab.research.google.com/drive/1YD5irv7Qni2gyFu
 ``` python
 # Copy and run in the first cell:
 !pip install control           # Control package must be installed in Google Colab server
-!git clone https://github.com/lucasbellinaso/PythonSisoDesignApp.git
-import os
-os.chdir("PythonSisoDesignApp")
-!python classes.py             # running the github code
-from classes import SISOApp    # importing the SISOApp
-from control.matlab import *   # importing control package as a Matlab environment
+!wget https://raw.githubusercontent.com/lucasbellinaso/PythonSisoDesignApp/main/classes.py
+from classes import SISOApp
 #help(SISOApp)
 ```
-If you have any AdBlock installed: disable GitHub and Google Colab blocking.
-
 
 ## Help
 
