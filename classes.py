@@ -1079,6 +1079,8 @@ class SISOApp:
         np.atleast_1d(self.Gp.SPoles), np.atleast_1d(self.Gp.SZeros),
         np.atleast_1d(self.Gc.SPoles), np.atleast_1d(self.Gc.SZeros)]))
     freqs_nz = freqs[freqs > 1e-9]   #frequêncies different than zero
+    if (len(freqs_nz) == 0):
+      freqs_nz = [1, 1000]
     omega_min = 0.1 * np.min(freqs_nz) if len(freqs_nz) > 0 else 1e-3
     omega_max =  10*np.max(freqs_nz) if self.ContinuousTime else 0.999*np.pi/self.dt
     omega_max = max(1e-2, omega_max)
